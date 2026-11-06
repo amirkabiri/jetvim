@@ -1,0 +1,17 @@
+# Pinned official upstream assets; checksums from GitHub release digests, Node SHASUMS256.txt and go.dev/dl/?mode=json.
+neovim	linux	arm64	https://github.com/neovim/neovim/releases/download/v0.12.6/nvim-linux-arm64.tar.gz	8f1f64a0bdb97247034038c3823c6cbad5bdf9ecd5751b85494b71c3ee04c815	tree
+neovim	linux	x86_64	https://github.com/neovim/neovim/releases/download/v0.12.6/nvim-linux-x86_64.tar.gz	474430d53e6264f6d6dd18db42d6dc9df3a1b56ca9e88a325bbf860e1a811d87	tree
+neovim	macos	arm64	https://github.com/neovim/neovim/releases/download/v0.12.6/nvim-macos-arm64.tar.gz	1dbd148222b051ba6c307c4d17a318ed083df018a4f6a5a0ce46955ffc9ab87b	tree
+neovim	macos	x86_64	https://github.com/neovim/neovim/releases/download/v0.12.6/nvim-macos-x86_64.tar.gz	481424f1dbc85f637d57e47d27d042aa9c883e5a4fe9ee64fc4ee9573b221998	tree
+ripgrep	linux	arm64	https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-aarch64-unknown-linux-musl.tar.gz	800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915	single
+ripgrep	linux	x86_64	https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz	33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c	single
+ripgrep	macos	arm64	https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-aarch64-apple-darwin.tar.gz	3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4	single
+ripgrep	macos	x86_64	https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-apple-darwin.tar.gz	af7825fcc69a2afc7a7aea55fc9af90e26421d8f20fe59df32e233c0b8a231c1	single
+node	linux	arm64	https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-arm64.tar.gz	439e9c438acdf6a6ffe47418da709153d66c4bed812e30a473faacb107dd2791	tree
+node	linux	x86_64	https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-x64.tar.gz	5848553868b402d3fabb5b09270649977780a390f832155721025a08b5104455	tree
+node	macos	arm64	https://nodejs.org/dist/v26.13.0/node-v26.13.0-darwin-arm64.tar.gz	d38bd5e5a2ddce6bbb5ce45e46e208337da4d51fffe611e567fd32073d6439f6	tree
+node	macos	x86_64	https://nodejs.org/dist/v26.13.0/node-v26.13.0-darwin-x64.tar.gz	525c9b29bb0263d687de60a4cec0e2a6db876a8eb032369e5795eca71e7c358e	tree
+go-toolchain	linux	arm64	https://go.dev/dl/go1.27.3.linux-arm64.tar.gz	a06e99309dbcbdca1a8ccd2282c3ee146e55930886e26b4f1193269587165f49	tree
+go-toolchain	linux	x86_64	https://go.dev/dl/go1.27.3.linux-amd64.tar.gz	65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40	tree
+go-toolchain	macos	arm64	https://go.dev/dl/go1.27.3.darwin-arm64.tar.gz	dd3908cf20959d798c1e06ebe5b72213f0505ce01373b40ce3110975a6cd99c2	tree
+go-toolchain	macos	x86_64	https://go.dev/dl/go1.27.3.darwin-amd64.tar.gz	b6f8e931e4ab497fcde6da8ae4499a58f9d258e55c8a80824a516eae5950a750	tree

@@ -18,18 +18,19 @@ import uuid
 
 def main():
     root = Path(os.environ['JETVIM_ROOT'])
+    home = Path(os.environ.get('JETVIM_HOME', str(root / '.jetvim')))
     if sys.platform != 'darwin' or not sys.stdin.isatty():
         raise SystemExit('--warp-keys requires macOS and an interactive terminal.')
     source = root / 'macos/KeyBridge.swift'
-    binary = root / '.jetvim/bin/keybridge'
+    binary = home / 'bin/keybridge'
     binary.parent.mkdir(parents=True, exist_ok=True)
     if not binary.exists() or binary.stat().st_mtime < source.stat().st_mtime:
         compiler = shutil.which('swiftc')
         if not compiler:
             raise SystemExit('The Warp bridge needs the Swift compiler. Plain ./jetvim works without it.')
-        cache = root / '.jetvim/cache/swift'
+        cache = home / 'cache/swift'
         cache.mkdir(parents=True, exist_ok=True)
-        print('Building the optional Warp key bridge inside .jetvim/ …', flush=True)
+        print(f'Building the optional Warp key bridge in {home} …', flush=True)
         subprocess.run([compiler, '-module-cache-path', str(cache), str(source), '-o', str(binary)], check=True)
     token = 'Jetvim-' + uuid.uuid4().hex[:8]
     env = os.environ.copy()

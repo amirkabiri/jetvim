@@ -1,7 +1,19 @@
 #!/bin/sh
 set -eu
-JETVIM_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+JETVIM_EXEC=$0
+JETVIM_LINKS=0
+while [ -L "$JETVIM_EXEC" ]; do
+  JETVIM_LINKS=$((JETVIM_LINKS + 1))
+  [ "$JETVIM_LINKS" -le 40 ] || { echo 'Jetvim: symlink loop' >&2; exit 1; }
+  JETVIM_LINK_DIR=$(CDPATH= cd -- "$(dirname -- "$JETVIM_EXEC")" && pwd -P)
+  JETVIM_EXEC=$(readlink "$JETVIM_EXEC")
+  case "$JETVIM_EXEC" in /*) ;; *) JETVIM_EXEC="$JETVIM_LINK_DIR/$JETVIM_EXEC";; esac
+done
+JETVIM_ROOT=$(CDPATH= cd -- "$(dirname -- "$JETVIM_EXEC")" && pwd -P)
 export JETVIM_ROOT
+JETVIM_HOME=${JETVIM_HOME:-"$JETVIM_ROOT/.jetvim"}
+export JETVIM_HOME
+export PATH="$JETVIM_HOME/tools/neovim/bin:$JETVIM_HOME/tools/ripgrep/bin:$JETVIM_HOME/tools/node/bin:$JETVIM_HOME/tools/go/toolchain/bin:$PATH"
 JETVIM_WARP_KEYS=0
 if [ "${1:-}" = "--warp-keys" ]; then
   JETVIM_WARP_KEYS=1
@@ -26,15 +38,25 @@ if ! command -v nvim >/dev/null 2>&1; then
   echo 'Jetvim requires Neovim 0.11 or newer. No software was installed.' >&2
   exit 1
 fi
-export XDG_CONFIG_HOME="$JETVIM_ROOT/.jetvim/config"
-export XDG_DATA_HOME="$JETVIM_ROOT/.jetvim/data"
-export XDG_STATE_HOME="$JETVIM_ROOT/.jetvim/state"
-export XDG_CACHE_HOME="$JETVIM_ROOT/.jetvim/cache"
-export TMPDIR="$JETVIM_ROOT/.jetvim/tmp"
-export NVIM_LOG_FILE="$JETVIM_ROOT/.jetvim/nvim.log"
+export XDG_CONFIG_HOME="$JETVIM_HOME/config"
+export XDG_DATA_HOME="$JETVIM_HOME/data"
+export XDG_STATE_HOME="$JETVIM_HOME/state"
+export XDG_CACHE_HOME="$JETVIM_HOME/cache"
+export TMPDIR="$JETVIM_HOME/tmp"
+export NVIM_LOG_FILE="$JETVIM_HOME/nvim.log"
 export NVIM_APPNAME=jetvim
-export PATH="$JETVIM_ROOT/.jetvim/tools/typescript/node_modules/.bin:$PATH"
+export PATH="$JETVIM_HOME/tools/go/bin:$JETVIM_HOME/tools/typescript/node_modules/.bin:$PATH"
+export GOBIN="$JETVIM_HOME/tools/go/bin"
+export GOPATH="$JETVIM_HOME/tools/go/path"
+export GOMODCACHE="$JETVIM_HOME/cache/go-mod"
+export GOCACHE="$JETVIM_HOME/cache/go-build"
+export GOPLSCACHE="$JETVIM_HOME/cache/gopls"
+export GOTMPDIR="$TMPDIR"
+export GOENV=off GOTELEMETRY=off GOTOOLCHAIN=local
+export TEST_TELEMETRY_DIR="$JETVIM_HOME/cache/go-telemetry"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME" "$TMPDIR"
+mkdir -p "$GOBIN" "$GOPATH" "$GOMODCACHE" "$GOCACHE" "$GOPLSCACHE" "$TEST_TELEMETRY_DIR"
+if [ ! -f "$TEST_TELEMETRY_DIR/mode" ]; then printf 'off\n' > "$TEST_TELEMETRY_DIR/mode"; fi
 cd "$JETVIM_PROJECT"
 if [ "$JETVIM_WARP_KEYS" = 1 ]; then
   exec python3 "$JETVIM_ROOT/scripts/warp.py" "$@"

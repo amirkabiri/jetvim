@@ -4,11 +4,11 @@
 -- Definition, completion, refactoring, symbols and formatting need server support.
 
 -- Go:
--- vim.lsp.config('gopls', {
---   cmd = { 'gopls' }, filetypes = { 'go', 'gomod', 'gowork' },
---   root_markers = { 'go.work', 'go.mod', '.git' },
--- })
--- vim.lsp.enable('gopls')
+vim.lsp.config('gopls', {
+  cmd = { 'gopls' }, filetypes = { 'go', 'gomod', 'gowork' },
+  root_markers = { 'go.work', 'go.mod', '.git' },
+})
+vim.lsp.enable('gopls')
 
 -- Python (python-lsp-server):
 -- vim.lsp.config('pylsp', {

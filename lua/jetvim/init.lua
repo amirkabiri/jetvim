@@ -20,8 +20,9 @@ function M.setup(root)
     vim.o.title = true
     vim.o.titlestring = vim.env.JETVIM_SESSION_TITLE
   end
-  vim.opt.undodir = root .. '/.jetvim/undo//'
-  vim.fn.mkdir(root .. '/.jetvim/undo', 'p')
+  local runtime_home = vim.env.JETVIM_HOME or root .. '/.jetvim'
+  vim.opt.undodir = runtime_home .. '/undo//'
+  vim.fn.mkdir(runtime_home .. '/undo', 'p')
   vim.cmd('filetype plugin indent on')
   vim.cmd('syntax enable')
   vim.cmd.colorscheme('habamax')
