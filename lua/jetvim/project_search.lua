@@ -197,6 +197,7 @@ function M.open()
   for _, win in ipairs({ state.promptwin, state.listwin }) do vim.wo[win].winhighlight = 'Normal:JetvimPopup,NormalFloat:JetvimPopup,FloatBorder:JetvimPopupBorder' end
   vim.wo[state.promptwin].statusline = '%#JetvimStatus#  Find in Files  ›  ' .. label:gsub('%%', '%%%%') .. ' %= Literal search  '
   vim.api.nvim_buf_set_extmark(state.input, ns, 0, 0, { virt_text = { { 'Find › ', 'JetvimMuted' } }, virt_text_pos = 'inline', right_gravity = false })
+  require('jetvim.keymap').input_word_delete(state.input)
   for _, mode in ipairs({ 'i', 'n' }) do
     vim.keymap.set(mode, '<Esc>', function() M.close() end, { buffer = state.input, nowait = true })
     vim.keymap.set(mode, '<CR>', M.choose, { buffer = state.input })

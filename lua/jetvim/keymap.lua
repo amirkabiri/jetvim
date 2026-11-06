@@ -1,4 +1,19 @@
 local M = {}
+-- Query buffers contain only user text; their visible prefix is virtual text.
+-- Native Insert-mode CtrlW edits synchronously and cannot strand the field in
+-- Normal mode before the next character in the same terminal input batch.
+function M.input_word_delete(buf)
+  local options = { buffer = buf, silent = true, desc = 'Delete Previous Word' }
+  vim.keymap.set('i', '<M-BS>', '<C-w>', options)
+  vim.keymap.set('i', '<M-C-h>', '<C-w>', options)
+  for index, binding in ipairs(M.bindings or {}) do
+    if binding.id == 'delete_word_left' then
+      vim.keymap.set('i', binding.key, '<C-w>', options)
+      vim.keymap.set('i', vim.fn.nr2char(0xF0000 + index), '<C-w>', options)
+      break
+    end
+  end
+end
 function M.setup(root)
   M.bindings = vim.json.decode(table.concat(vim.fn.readfile(root .. '/config/keymap.json'), '\n'))
   local actions = require('jetvim.actions')

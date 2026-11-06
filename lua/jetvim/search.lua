@@ -168,6 +168,7 @@ function M.open()
   M.status_win = vim.api.nvim_open_win(M.status_buf, false, { relative = 'win', win = M.owner, row = 0, col = 1, width = 1, height = 1, style = 'minimal', focusable = false, zindex = 70 })
   for _, win in ipairs({ M.win, M.status_win }) do vim.wo[win].winhighlight = 'Normal:JetvimPopup,NormalFloat:JetvimPopup' end
   vim.api.nvim_buf_set_extmark(M.input, label_ns, 0, 0, { virt_text = { { 'Find › ', 'JetvimMuted' } }, virt_text_pos = 'inline', right_gravity = false })
+  require('jetvim.keymap').input_word_delete(M.input)
   for _, mode_name in ipairs({ 'i', 'n' }) do
     vim.keymap.set(mode_name, '<Esc>', M.close, { buffer = M.input, nowait = true })
     vim.keymap.set(mode_name, '<CR>', function() M.step(1) end, { buffer = M.input })
