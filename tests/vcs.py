@@ -17,6 +17,14 @@ Editor, git, equal = support['Editor'], support['git'], support['equal']
 STATE = support['STATE']
 # This is explicitly a real-Git test; normal agent-run UI tests use the opt-out.
 support['ENV'].pop('JETVIM_DISABLE_VCS', None)
+# This fixture exercises filename-cache rendering, not independent blame/gutter
+# providers. Disable only their setup before init creates any timers/autocmds;
+# otherwise a queued blame refresh can be counted as render-triggered Git.
+# Keep real VCS setup and delayed process observation enabled below.
+FILENAME_CACHE_INIT = (
+    "lua for _, name in ipairs({'jetvim.blame', 'jetvim.gutter'}) do "
+    "package.preload[name] = function() return { setup = function() end } end end"
+)
 
 
 def lookup(editor, path):
@@ -58,8 +66,10 @@ with tempfile.TemporaryDirectory(prefix='vcs colors ', dir=STATE) as folder:
     (repo / 'added.lua').write_text('-- staged\n')
     git(repo, 'add', '--', 'added.lua')
     index_before = hashlib.sha256((repo / '.git/index').read_bytes()).hexdigest()
-    editor = Editor(repo, 'modified.lua')
+    editor = Editor(repo, 'modified.lua', pre_init=FILENAME_CACHE_INIT)
     try:
+        equal(editor.lua('return {vim.fn.exists("#JetvimBlame"),vim.fn.exists("#JetvimGitGutter")}'),
+              [0, 0], 'unrelated Git providers never install background refreshes in filename fixture')
         editor.wait('return require("jetvim.vcs").status(vim.uv.cwd().."/modified.lua")=="modified"')
         equal(lookup(editor, repo / 'modified.lua'), 'modified', 'tracked modification cached')
         equal(lookup(editor, repo / 'untracked.lua'), 'untracked', 'untracked filename cached')
@@ -92,7 +102,7 @@ with tempfile.TemporaryDirectory(prefix='vcs colors ', dir=STATE) as folder:
     finally:
         editor.close()
     equal(hashlib.sha256((repo / '.git/index').read_bytes()).hexdigest(), index_before, 'automatic status does not change index')
-    editor = Editor(repo / 'nested', 'inside.lua')
+    editor = Editor(repo / 'nested', 'inside.lua', pre_init=FILENAME_CACHE_INIT)
     try:
         editor.wait('return require("jetvim.vcs").status(vim.uv.cwd().."/inside.lua")=="modified"')
         equal(lookup(editor, repo / 'modified.lua'), None, 'status cache excludes files outside selected project')

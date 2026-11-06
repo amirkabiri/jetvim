@@ -43,15 +43,18 @@ def git(repo, *args, expected_codes=(0,)):
 
 
 class Editor:
-    def __init__(self, project, file):
+    def __init__(self, project, file, pre_init=None):
         self.socket = STATE / f'git-test-{os.getpid()}-{time.monotonic_ns() % 100000}.sock'
         self.log_path = self.socket.with_suffix('.log')
         self.log = self.log_path.open('w')
         self.master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 35, 140, 0, 0))
         self.stop = threading.Event()
-        self.process = subprocess.Popen([str(ROOT / 'jetvim'), str(project), file, '--listen', str(self.socket),
-                                         '-c', 'lua vim.g.JetvimTestReady = true'],
+        argv = [str(ROOT / 'jetvim'), str(project), file, '--listen', str(self.socket),
+                '-c', 'lua vim.g.JetvimTestReady = true']
+        if pre_init is not None:
+            argv.extend(['--cmd', pre_init])
+        self.process = subprocess.Popen(argv,
                                         cwd=ROOT, env=dict(ENV, TERM='xterm-256color'), stdout=slave, stderr=slave, stdin=slave)
         os.close(slave)
         self.reader = threading.Thread(target=self.drain, daemon=True)
