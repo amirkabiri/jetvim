@@ -151,19 +151,54 @@ with tempfile.TemporaryDirectory(prefix='autosave-', dir=STATE) as directory:
     try:
         equal(editor.lua('return require("jetvim.settings").get().autosave'),
               {'enabled':True,'debounce':True,'delay_ms':1000,'on_focus_lost':True}, 'installed defaults')
-        # Real insert-mode keystrokes must restart the complete one-second delay.
+        # Observe debounce timing inside the editor's monotonic event loop.
+        # Python/CI can be descheduled past a correct timer's deadline; elapsed
+        # host sleeps cannot prove that an automatic write happened too early.
         editor.wait('return vim.fn.mode() == "i"')
+        editor.lua('''
+          _G.JetvimAutosaveTiming = { edits = {}, writes = {}, previous = vim.api.nvim_get_current_line() }
+          local timing = _G.JetvimAutosaveTiming
+          local group = vim.api.nvim_create_augroup('JetvimAutosaveTimingTest', { clear = true })
+          local buf = vim.api.nvim_get_current_buf()
+          vim.api.nvim_create_autocmd('TextChangedI', { group = group, buffer = buf, callback = function()
+            local text = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
+            if not vim.bo[buf].modified or text == timing.previous then return end
+            timing.previous, timing.last_edit = text, vim.uv.now()
+            local state = require('jetvim.autosave').states[buf]
+            timing.edits[#timing.edits + 1] = {
+              text = text, delay = require('jetvim.settings').get().autosave.delay_ms,
+              due = state and state.timer and state.timer:get_due_in(),
+            }
+          end })
+          vim.api.nvim_create_autocmd('BufWritePre', { group = group, buffer = buf, callback = function()
+            timing.writes[#timing.writes + 1] = {
+              text = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1],
+              elapsed = timing.last_edit and vim.uv.now() - timing.last_edit,
+              delay = require('jetvim.settings').get().autosave.delay_ms,
+            }
+          end })
+          return true
+        ''')
+        # Real insert-mode keystrokes each arm the complete one-second delay,
+        # including a second keystroke while the first timer is normally pending.
         editor.raw('X'); time.sleep(.50)
-        equal(main.read_text(), '-- original\n', 'no save before first debounce expires')
-        editor.raw('Y'); time.sleep(.50)
-        equal(main.read_text(), '-- original\n', 'new keystroke resets full debounce')
+        editor.raw('Y')
         editor.disk(main, 'XY-- original\n')
+        timing = editor.lua('return _G.JetvimAutosaveTiming')
+        equal([edit['text'] for edit in timing['edits']], ['X-- original', 'XY-- original'], 'real typing produces both debounce edits')
+        equal([edit['due'] for edit in timing['edits']], [1000, 1000], 'each keystroke restarts the full default delay')
+        for write in timing['writes']:
+            equal(write['elapsed'] >= write['delay'], True, 'default autosave waits a complete delay after latest edit')
         equal(editor.lua('return vim.bo.modified'), False, 'debounced save clears dirty flag')
         equal(editor.lua('return vim.fn.mode()'), 'i', 'debounced save preserves insert mode')
         options(enabled=True, debounce=True, delay_ms=250, on_focus_lost=False)
-        editor.raw('Z'); time.sleep(.05)
-        equal(main.read_text(), 'XY-- original\n', 'custom delay is not immediate')
+        editor.raw('Z')
         editor.disk(main, 'XYZ-- original\n')
+        timing = editor.lua('vim.api.nvim_del_augroup_by_name("JetvimAutosaveTimingTest"); return _G.JetvimAutosaveTiming')
+        equal(timing['edits'][-1]['text'], 'XYZ-- original', 'custom delay observes real inserted text')
+        equal(timing['edits'][-1]['due'], 250, 'custom delay arms a full 250ms timer')
+        equal(timing['writes'][-1]['text'], 'XYZ-- original', 'custom timer writes final edit')
+        equal(timing['writes'][-1]['elapsed'] >= 250, True, 'custom delay never writes before its editor-side deadline')
         # Focus writes work independently when idle/debounce writes are disabled.
         options(enabled=True, debounce=False, on_focus_lost=True)
         editor.edit('-- sidebar leave')
