@@ -3,6 +3,9 @@
 The lead owns version control, task coordination, independent validation and commits.
 Implementation agents must not run Git commands or create commits.
 All development changes and test fixtures stay inside this checkout.
+A later explicit request authorizes changes only to one external project’s Jetvim settings; its source and audit artifacts are not committed here.
+
+Latest completed implementation: `00d6a09`. Validated changes awaiting a commit and active fixes are distinguished below.
 
 | User request | Owner | Status | Acceptance checks |
 | --- | --- | --- | --- |
@@ -36,14 +39,18 @@ All development changes and test fixtures stay inside this checkout.
 | Folder-scoped Find in Files modal on Command-Shift-F | public_ci agent | Committed/pushed `e5ae01f`; 46 modal + 31 search checks | Native and relay shortcuts open a focused floating search modal; selected folder scopes results; async cancellation and safe paths |
 | One-command macOS/Linux installation | installer agent | Committed/pushed `c54b122`; 9 offline tests, real Git update smoke, all 4 macOS ARM assets verified | Clone under ~/.jetvim/code; preserve user settings; verified dependencies; isolated install/update tests; honest terminal limitations |
 | Short README and combined IDE/Vim logo | public_ci agent | Committed/pushed `d0372f8`; lead inspected rendered SVG | Exact introduction: Imagine if JetBrains and Vim had a baby!; one install command; local original logo |
-| GitHub Actions tests and packages | public_ci agent | Local test groups pass; workflow/action pins reviewed; hosted run pending | macOS/Linux matrix; pinned actions; tests and privacy audit; no private runtime artifacts |
+| GitHub Actions tests and packages | public_ci agent | Configured/pushed; local checks pass; hosted results not verified without GitHub API/browser access | macOS/Linux matrix; pinned actions; tests and privacy audit; no private runtime artifacts |
 | Public source and history privacy review | Lead + public_ci agent | Complete: all 7 historical commits sanitized and main replaced with approved force-with-lease; source/history scans pass | No confidential data; no personal machine paths; exclude caches/settings; no license per user request |
 | Option-Delete deletes previous word in embedded terminal | public_ci agent | Independently validated: 27 native/relay byte + real Bash checks; committed `540ff33` | Native127/8 CSI-u, legacy Escape-Delete and relay each send one Ctrl-W; physical Warp right-Option still requires live user verification |
 | Reload externally changed files, including git restore | disk_sync agent | Committed/pushed `b0b2c1a`; 57 checks including real Git restore | Clean named buffers reload automatically; preserve views and unsaved edits; refresh Git indicators; handle atomic replacements/deletion/recreation |
-| Short workspace-aware formatter/linter hooks | hooks_bridge + project_hooks agents | Validated: 49 workspace + 21 actual autosave pipeline checks | Native local-tool/config discovery; short user/project Lua settings; preserve argv/cwd/ESLint diagnostics; no dependency downloads |
-| Configure an existing project with its installed formatter/linter | project_hooks agent | Delivered: short JS/TS hooks follow declared Oxfmt/Prettier, then ESLint | Modify only explicitly authorized project settings; use installed tools and correct workspace configurations; validate read-only |
+| Short workspace-aware formatter/linter hooks | hooks_bridge + project_hooks agents | Committed/pushed `dc0d0c8`; 49 workspace + 21 actual autosave pipeline checks | Native local-tool/config discovery; short user/project Lua settings; preserve argv/cwd/ESLint diagnostics; no dependency downloads |
+| Configure an existing project with its installed formatter/linter | project_hooks agent | Settings updated: declared formatter → Oxlint/ESLint where declared; native Oxlint support validated, awaiting commit | Modify only explicitly authorized project settings; use installed tools and correct workspace configurations; validate read-only |
 | Create files/folders using Command-N in the tree | public_ci agent | Committed/pushed `ebfb767`; 37 creation checks, 88 bridge shortcuts validated | Native/relay prompt, selected directory, exclusive file creation, nested folders, cancel and path guards |
-| Respect the declared project formatter on save | hooks_bridge + project_hooks agents | Validated: affected files choose Oxfmt; packages declaring Prettier keep it | Inspect scripts/configs without running scripts; local binaries only; one saved file; ambiguity reported |
+| Configure the project lint chain, including Oxlint | hooks_bridge + project_hooks agents | Independently validated: 36 parser/pipeline checks plus actual installed Oxlint on an isolated fixture; awaiting commit | Respect declared Oxlint/ESLint scripts; parse Oxlint JSON into line diagnostics; retain complementary checks and ESLint-only workspaces |
+| Clear in-file search highlights when closing search | public_ci agent | Committed/pushed `00d6a09`; 45 PTY/rendering checks | Clear native and custom highlights on Escape; preserve last query and Command-G navigation |
+| Respect the declared project formatter on save | hooks_bridge + project_hooks agents | Committed/pushed `dc0d0c8`; actual target-file Oxfmt/config checks passed read-only | Inspect scripts/configs without running scripts; local binaries only; one saved file; ambiguity reported |
+| Show diagnostics while typing and preserve Git signs with multiple linters | public_ci agent | Independently validated: 21 live TUI + 35 real Git gutter checks; awaiting commit | Updates in insert mode; two Git signs plus highest diagnostic coexist in three slots; cursor/focus unchanged |
+| Option-Delete in the folder-search modal | public_ci agent | In progress: user clarified popup context; native/relay word-delete and typing-mode fix underway | Both Option key encodings delete a word without leaving the search input; plain Backspace still deletes one character |
 | Commit/push completed tasks after independent validation | Lead | Active policy; search, gutter, installer and editor bundle committed/pushed | Review code and exact staged functionality, run relevant tests, commit and push without agent Git access |
 | Initialize Git, validate delegated changes, then commit | Lead | Complete: implementation committed as `c4db90e` after independent validation | Independently inspect diffs and run required tests before committing |
 | Support additional terminals over time | Future terminal adapters | Backlog | Shared actions; terminal-specific forwarding and focus validation |
@@ -52,7 +59,7 @@ All development changes and test fixtures stay inside this checkout.
 No completed feature is considered validated solely because an agent reports success.
 The lead records exact validation results and commit references below after review.
 
-Independent final validation:
+Initial implementation validation (historical milestone):
 
 - `python3 tests/selection.py`: 230 structural selection checks passed.
 - `python3 tests/integration.py`: 38 editor integration checks passed after all
@@ -122,3 +129,13 @@ Latest task validation:
 - Hook-only fixtures exclude unrelated language servers and capture failure
   state without increasing their deadlines. Private project config and audit
   artifacts are not included in this repository or release archive.
+
+Current follow-up validation:
+
+- Search-close cleanup is committed/pushed as `00d6a09` after 45 checks.
+- Oxlint parsing is independently validated with 36 cases and actual installed
+  Oxlint JSON from a generated fixture; no real external-project source was linted.
+- Live diagnostics and multi-provider Git sign coexistence passed 21 rendering
+  checks and the 35-check real Git gutter suite. These changes await a commit.
+- Option-Delete’s latest report concerns the folder-search input, distinct from
+  the already-validated embedded-terminal transport. That popup fix remains active.
