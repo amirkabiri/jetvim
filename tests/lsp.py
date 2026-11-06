@@ -76,6 +76,19 @@ try:
     lua(f'vim.api.nvim_win_set_cursor(0,{{3,{main_lines[2].index("greet") + 2}}}); return vim.api.nvim_input("i<D-b>")')
     wait('return vim.fs.basename(vim.api.nvim_buf_get_name(0)) == "definitions.ts"', 'Command-B did not jump to definition')
     check(lua('return vim.api.nvim_win_get_cursor(0)[1]') == 1, 'Command-B lands on function declaration')
+    # At the declaration Command-B becomes a usage list, including the call in main.ts.
+    lua('return vim.api.nvim_input("<D-b>")')
+    wait('return vim.bo.buftype == "prompt"', 'Command-B on declaration did not open usages picker')
+    check(True, 'Command-B on declaration opens usages list')
+    wait('for _,b in ipairs(vim.api.nvim_list_bufs()) do if vim.api.nvim_buf_is_loaded(b) then '
+         'for _,line in ipairs(vim.api.nvim_buf_get_lines(b,0,-1,false)) do '
+         'if line:find("main.ts:3:",1,true) then return true end end end end;return false',
+         'usages picker did not contain actual TypeScript call')
+    check(True, 'actual server reference appears in usages list')
+    lua('return vim.api.nvim_input("main.ts:3:<CR>")')
+    wait('return vim.fs.basename(vim.api.nvim_buf_get_name(0)) == "main.ts" and vim.api.nvim_win_get_cursor(0)[1] == 3',
+         'selecting usage did not navigate back to call')
+    check(True, 'selecting real usage returns to its call site')
     info = lua('local old=vim.notify; local message; vim.notify=function(text) message=text end; '
                'vim.cmd("JetvimLspInfo"); vim.notify=old; return message')
     check('ts_ls' in info and str(SERVER) in info, 'language diagnostics show attached server and local executable')

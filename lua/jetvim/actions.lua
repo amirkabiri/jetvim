@@ -102,7 +102,7 @@ function M.classes() symbols(true, true) end
 function M.symbols() symbols(true, false) end
 function M.structure() symbols(false) end
 local methods = {
-  definition = { 'textDocument/definition', vim.lsp.buf.definition },
+  definition = { 'textDocument/definition', function() require('jetvim.navigation').definition() end },
   implementation = { 'textDocument/implementation', vim.lsp.buf.implementation },
   type_definition = { 'textDocument/typeDefinition', vim.lsp.buf.type_definition },
   references = { 'textDocument/references', vim.lsp.buf.references },
