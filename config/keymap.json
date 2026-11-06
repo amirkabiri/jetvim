@@ -1,0 +1,620 @@
+[
+  {
+    "id": "tree",
+    "label": "Project tool window",
+    "shortcut": "⌘1",
+    "key": "<D-1>",
+    "terminal": "super+1",
+    "fallback": "<leader>1"
+  },
+  {
+    "id": "files",
+    "label": "Go to File",
+    "shortcut": "⌘⇧O",
+    "key": "<D-S-o>",
+    "terminal": "super+shift+o",
+    "fallback": "<leader>f"
+  },
+  {
+    "id": "classes",
+    "label": "Go to Class",
+    "shortcut": "⌘O",
+    "key": "<D-o>",
+    "terminal": "super+o",
+    "fallback": "<leader>c"
+  },
+  {
+    "id": "symbols",
+    "label": "Go to Symbol",
+    "shortcut": "⌘⌥O",
+    "key": "<D-M-o>",
+    "terminal": "super+alt+o",
+    "fallback": "<leader>y"
+  },
+  {
+    "id": "palette",
+    "label": "Find Action",
+    "shortcut": "⌘⇧A",
+    "key": "<D-S-a>",
+    "terminal": "super+shift+a",
+    "fallback": "<leader>a"
+  },
+  {
+    "id": "everywhere",
+    "label": "Search Everywhere (terminal alternative)",
+    "shortcut": "⌘⇧P",
+    "key": "<D-S-p>",
+    "terminal": "super+shift+p",
+    "fallback": "<leader><leader>"
+  },
+  {
+    "id": "recent",
+    "label": "Recent Files",
+    "shortcut": "⌘E",
+    "key": "<D-e>",
+    "terminal": "super+e",
+    "fallback": "<leader>e"
+  },
+  {
+    "id": "locations",
+    "label": "Recent Locations",
+    "shortcut": "⌘⇧E",
+    "key": "<D-S-e>",
+    "terminal": "super+shift+e",
+    "fallback": "<leader>j"
+  },
+  {
+    "id": "line",
+    "label": "Go to Line / Column",
+    "shortcut": "⌘L",
+    "key": "<D-l>",
+    "terminal": "super+l",
+    "fallback": "<leader>l"
+  },
+  {
+    "id": "find",
+    "label": "Find",
+    "shortcut": "⌘F",
+    "key": "<D-f>",
+    "terminal": "super+f",
+    "fallback": "<leader>/"
+  },
+  {
+    "id": "next_match",
+    "label": "Find Next",
+    "shortcut": "⌘G",
+    "key": "<D-g>",
+    "terminal": "super+g"
+  },
+  {
+    "id": "previous_match",
+    "label": "Find Previous",
+    "shortcut": "⌘⇧G",
+    "key": "<D-S-g>",
+    "terminal": "super+shift+g"
+  },
+  {
+    "id": "replace",
+    "label": "Replace in File",
+    "shortcut": "⌘R",
+    "key": "<D-r>",
+    "terminal": "super+r",
+    "fallback": "<leader>r"
+  },
+  {
+    "id": "find_project",
+    "label": "Find in Files",
+    "shortcut": "⌘⇧F",
+    "key": "<D-S-f>",
+    "terminal": "super+shift+f",
+    "fallback": "<leader>g"
+  },
+  {
+    "id": "save",
+    "label": "Save All",
+    "shortcut": "⌘S",
+    "key": "<D-s>",
+    "terminal": "super+s",
+    "fallback": "<leader>s"
+  },
+  {
+    "id": "close",
+    "label": "Close Editor",
+    "shortcut": "⌘W",
+    "key": "<D-w>",
+    "terminal": "super+w",
+    "fallback": "<leader>w"
+  },
+  {
+    "id": "undo",
+    "label": "Undo",
+    "shortcut": "⌘Z",
+    "key": "<D-z>",
+    "terminal": "super+z"
+  },
+  {
+    "id": "redo",
+    "label": "Redo",
+    "shortcut": "⌘⇧Z",
+    "key": "<D-S-z>",
+    "terminal": "super+shift+z"
+  },
+  {
+    "id": "copy",
+    "label": "Copy Selection or Line",
+    "shortcut": "⌘C",
+    "key": "<D-c>",
+    "terminal": "super+c"
+  },
+  {
+    "id": "cut",
+    "label": "Cut Selection or Line",
+    "shortcut": "⌘X",
+    "key": "<D-x>",
+    "terminal": "super+x"
+  },
+  {
+    "id": "paste",
+    "label": "Paste",
+    "shortcut": "⌘V",
+    "key": "<D-v>",
+    "terminal": "super+v"
+  },
+  {
+    "id": "paste_history",
+    "label": "Paste from History",
+    "shortcut": "⌘⇧V",
+    "key": "<D-S-v>",
+    "terminal": "super+shift+v"
+  },
+  {
+    "id": "select_all",
+    "label": "Select All",
+    "shortcut": "⌘A",
+    "key": "<D-a>",
+    "terminal": "super+a"
+  },
+  {
+    "id": "duplicate",
+    "label": "Duplicate Selection or Line",
+    "shortcut": "⌘D",
+    "key": "<D-d>",
+    "terminal": "super+d",
+    "fallback": "<leader>d"
+  },
+  {
+    "id": "delete_line",
+    "label": "Delete Line",
+    "shortcut": "⌘Backspace",
+    "key": "<D-BS>",
+    "terminal": "super+backspace"
+  },
+  {
+    "id": "comment",
+    "label": "Toggle Line Comment",
+    "shortcut": "⌘/",
+    "key": "<D-/>",
+    "terminal": "super+slash",
+    "fallback": "<leader>/c"
+  },
+  {
+    "id": "move_up",
+    "label": "Move Line Up",
+    "shortcut": "⌥⇧↑",
+    "key": "<M-S-Up>",
+    "terminal": "alt+shift+up"
+  },
+  {
+    "id": "move_down",
+    "label": "Move Line Down",
+    "shortcut": "⌥⇧↓",
+    "key": "<M-S-Down>",
+    "terminal": "alt+shift+down"
+  },
+  {
+    "id": "join",
+    "label": "Join Lines",
+    "shortcut": "⌃⇧J",
+    "key": "<C-S-j>",
+    "terminal": "ctrl+shift+j"
+  },
+  {
+    "id": "split",
+    "label": "Split Line",
+    "shortcut": "⌘Enter",
+    "key": "<D-CR>",
+    "terminal": "super+enter"
+  },
+  {
+    "id": "newline",
+    "label": "Start New Line",
+    "shortcut": "⇧Enter",
+    "key": "<S-CR>",
+    "terminal": "shift+enter"
+  },
+  {
+    "id": "extend_selection",
+    "label": "Extend Selection",
+    "shortcut": "⌥↑",
+    "key": "<M-Up>",
+    "terminal": "alt+up"
+  },
+  {
+    "id": "shrink_selection",
+    "label": "Shrink Selection",
+    "shortcut": "⌥↓",
+    "key": "<M-Down>",
+    "terminal": "alt+down"
+  },
+  {
+    "id": "word_left",
+    "label": "Previous Word",
+    "shortcut": "⌥←",
+    "key": "<M-Left>",
+    "terminal": "alt+left"
+  },
+  {
+    "id": "word_right",
+    "label": "Next Word",
+    "shortcut": "⌥→",
+    "key": "<M-Right>",
+    "terminal": "alt+right"
+  },
+  {
+    "id": "line_start",
+    "label": "Line Start",
+    "shortcut": "⌘←",
+    "key": "<D-Left>",
+    "terminal": "super+left"
+  },
+  {
+    "id": "line_end",
+    "label": "Line End",
+    "shortcut": "⌘→",
+    "key": "<D-Right>",
+    "terminal": "super+right"
+  },
+  {
+    "id": "file_start",
+    "label": "File Start",
+    "shortcut": "⌘↑",
+    "key": "<D-Up>",
+    "terminal": "super+up"
+  },
+  {
+    "id": "file_end",
+    "label": "File End",
+    "shortcut": "⌘↓",
+    "key": "<D-Down>",
+    "terminal": "super+down"
+  },
+  {
+    "id": "select_word_left",
+    "label": "Select Previous Word",
+    "shortcut": "⌥⇧←",
+    "key": "<M-S-Left>",
+    "terminal": "alt+shift+left"
+  },
+  {
+    "id": "select_word_right",
+    "label": "Select Next Word",
+    "shortcut": "⌥⇧→",
+    "key": "<M-S-Right>",
+    "terminal": "alt+shift+right"
+  },
+  {
+    "id": "select_line_start",
+    "label": "Select to Line Start",
+    "shortcut": "⌘⇧←",
+    "key": "<D-S-Left>",
+    "terminal": "super+shift+left"
+  },
+  {
+    "id": "select_line_end",
+    "label": "Select to Line End",
+    "shortcut": "⌘⇧→",
+    "key": "<D-S-Right>",
+    "terminal": "super+shift+right"
+  },
+  {
+    "id": "select_file_start",
+    "label": "Select to File Start",
+    "shortcut": "⌘⇧↑",
+    "key": "<D-S-Up>",
+    "terminal": "super+shift+up"
+  },
+  {
+    "id": "select_file_end",
+    "label": "Select to File End",
+    "shortcut": "⌘⇧↓",
+    "key": "<D-S-Down>",
+    "terminal": "super+shift+down"
+  },
+  {
+    "id": "delete_word_left",
+    "label": "Delete Previous Word",
+    "shortcut": "⌥Backspace",
+    "key": "<M-BS>",
+    "terminal": "alt+backspace"
+  },
+  {
+    "id": "delete_word_right",
+    "label": "Delete Next Word",
+    "shortcut": "⌥Delete",
+    "key": "<M-Del>",
+    "terminal": "alt+delete"
+  },
+  {
+    "id": "next_tab",
+    "label": "Next Editor",
+    "shortcut": "⌃→",
+    "key": "<C-Right>",
+    "terminal": "ctrl+right",
+    "fallback": "<leader>]",
+    "aliases": [
+      {
+        "key": "<D-S-]>",
+        "terminal": "super+shift+bracket_right",
+        "shortcut": "⌘⇧]",
+        "alternate_keys": [
+          "<D-}>"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "previous_tab",
+    "label": "Previous Editor",
+    "shortcut": "⌃←",
+    "key": "<C-Left>",
+    "terminal": "ctrl+left",
+    "fallback": "<leader>[",
+    "aliases": [
+      {
+        "key": "<D-S-[>",
+        "terminal": "super+shift+bracket_left",
+        "shortcut": "⌘⇧[",
+        "alternate_keys": [
+          "<D-{>"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "back",
+    "label": "Navigate Back",
+    "shortcut": "⌘⌥←",
+    "key": "<D-M-Left>",
+    "terminal": "super+alt+left",
+    "fallback": "<leader>b"
+  },
+  {
+    "id": "forward",
+    "label": "Navigate Forward",
+    "shortcut": "⌘⌥→",
+    "key": "<D-M-Right>",
+    "terminal": "super+alt+right",
+    "fallback": "<leader>n"
+  },
+  {
+    "id": "last_edit",
+    "label": "Last Edit Location",
+    "shortcut": "⌘⇧Backspace",
+    "key": "<D-S-BS>",
+    "terminal": "super+shift+backspace"
+  },
+  {
+    "id": "block_start",
+    "label": "Code Block Start",
+    "shortcut": "⌘⌥[",
+    "key": "<D-M-[>",
+    "terminal": "super+alt+bracket_left"
+  },
+  {
+    "id": "block_end",
+    "label": "Code Block End",
+    "shortcut": "⌘⌥]",
+    "key": "<D-M-]>",
+    "terminal": "super+alt+bracket_right"
+  },
+  {
+    "id": "reveal",
+    "label": "Select File in Project",
+    "shortcut": "⌥F1",
+    "key": "<M-F1>",
+    "terminal": "alt+f1"
+  },
+  {
+    "id": "structure",
+    "label": "File Structure",
+    "shortcut": "⌘F12",
+    "key": "<D-F12>",
+    "terminal": "super+f12",
+    "fallback": "<leader>o"
+  },
+  {
+    "id": "definition",
+    "label": "Go to Declaration",
+    "shortcut": "⌘B",
+    "key": "<D-b>",
+    "terminal": "super+b",
+    "fallback": "<leader>gd"
+  },
+  {
+    "id": "implementation",
+    "label": "Go to Implementation",
+    "shortcut": "⌘⌥B",
+    "key": "<D-M-b>",
+    "terminal": "super+alt+b",
+    "fallback": "<leader>gi"
+  },
+  {
+    "id": "type_definition",
+    "label": "Go to Type Declaration",
+    "shortcut": "⌃⇧B",
+    "key": "<C-S-b>",
+    "terminal": "ctrl+shift+b"
+  },
+  {
+    "id": "references",
+    "label": "Find Usages",
+    "shortcut": "⌥F7",
+    "key": "<M-F7>",
+    "terminal": "alt+f7",
+    "fallback": "<leader>gu"
+  },
+  {
+    "id": "documentation",
+    "label": "Quick Documentation",
+    "shortcut": "⌘J",
+    "key": "<D-j>",
+    "terminal": "super+j",
+    "fallback": "<leader>k"
+  },
+  {
+    "id": "parameters",
+    "label": "Parameter Info",
+    "shortcut": "⌘P",
+    "key": "<D-p>",
+    "terminal": "super+p"
+  },
+  {
+    "id": "rename",
+    "label": "Rename Symbol",
+    "shortcut": "⇧F6",
+    "key": "<S-F6>",
+    "terminal": "shift+f6",
+    "fallback": "<leader>rn"
+  },
+  {
+    "id": "intentions",
+    "label": "Intentions / Quick Fix",
+    "shortcut": "⌥Enter",
+    "key": "<M-CR>",
+    "terminal": "alt+enter",
+    "fallback": "<leader>q"
+  },
+  {
+    "id": "format",
+    "label": "Reformat Code",
+    "shortcut": "⌘⌥L",
+    "key": "<D-M-l>",
+    "terminal": "super+alt+l",
+    "fallback": "<leader>="
+  },
+  {
+    "id": "imports",
+    "label": "Optimize Imports",
+    "shortcut": "⌃⌥O",
+    "key": "<C-M-o>",
+    "terminal": "ctrl+alt+o"
+  },
+  {
+    "id": "completion",
+    "label": "Code Completion",
+    "shortcut": "⌃Space",
+    "key": "<C-Space>",
+    "terminal": "ctrl+space"
+  },
+  {
+    "id": "call_hierarchy",
+    "label": "Call Hierarchy",
+    "shortcut": "⌃⌥H",
+    "key": "<C-M-h>",
+    "terminal": "ctrl+alt+h"
+  },
+  {
+    "id": "next_error",
+    "label": "Next Error",
+    "shortcut": "F2",
+    "key": "<F2>",
+    "terminal": "f2"
+  },
+  {
+    "id": "previous_error",
+    "label": "Previous Error",
+    "shortcut": "⇧F2",
+    "key": "<S-F2>",
+    "terminal": "shift+f2"
+  },
+  {
+    "id": "error_info",
+    "label": "Error Description",
+    "shortcut": "⌘F1",
+    "key": "<D-F1>",
+    "terminal": "super+f1"
+  },
+  {
+    "id": "fold_open",
+    "label": "Expand Fold",
+    "shortcut": "⌘+",
+    "key": "<D-+>",
+    "terminal": "super+equal"
+  },
+  {
+    "id": "fold_close",
+    "label": "Collapse Fold",
+    "shortcut": "⌘−",
+    "key": "<D-->",
+    "terminal": "super+minus"
+  },
+  {
+    "id": "fold_open_all",
+    "label": "Expand All Folds",
+    "shortcut": "⌘⇧+",
+    "key": "<D-S-+>",
+    "terminal": "super+shift+equal"
+  },
+  {
+    "id": "fold_close_all",
+    "label": "Collapse All Folds",
+    "shortcut": "⌘⇧−",
+    "key": "<D-S-->",
+    "terminal": "super+shift+minus"
+  },
+  {
+    "id": "terminal",
+    "label": "Terminal Tool Window",
+    "shortcut": "⌥F12",
+    "key": "<M-F12>",
+    "terminal": "alt+f12",
+    "fallback": "<leader>t"
+  },
+  {
+    "id": "editor",
+    "label": "Focus Editor",
+    "shortcut": "F4",
+    "key": "<F4>",
+    "terminal": "f4"
+  },
+  {
+    "id": "hide_tools",
+    "label": "Hide Tool Window",
+    "shortcut": "⇧Escape",
+    "key": "<S-Esc>",
+    "terminal": "shift+escape"
+  },
+  {
+    "id": "settings",
+    "label": "Jetvim Settings",
+    "shortcut": "⌘,",
+    "key": "<D-,>",
+    "terminal": "super+comma"
+  },
+  {
+    "id": "help",
+    "label": "Jetvim Shortcut Guide",
+    "shortcut": "⌘? (Jetvim)",
+    "key": "<D-?>",
+    "terminal": "super+shift+slash",
+    "fallback": "<leader>?"
+  },
+  {
+    "id": "git_changes",
+    "label": "Git Changes",
+    "shortcut": "⌘9",
+    "key": "<D-9>",
+    "terminal": "super+9",
+    "fallback": "<leader>9"
+  }
+]

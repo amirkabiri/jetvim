@@ -1,0 +1,42 @@
+#!/bin/sh
+set -eu
+JETVIM_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+export JETVIM_ROOT
+JETVIM_WARP_KEYS=0
+if [ "${1:-}" = "--warp-keys" ]; then
+  JETVIM_WARP_KEYS=1
+  shift
+fi
+if [ "${1:-}" = "--help" ]; then
+  printf '%s\n' 'Jetvim — macOS JetBrains shortcuts in a terminal Vim editor' \
+    'Usage: jetvim [project-directory] [file ...]' \
+    '       jetvim --warp-keys [project-directory] [file ...]' \
+    'The project defaults to your current directory.' \
+    'Escape enters Vim mode. Space ? opens the shortcut guide.' \
+    'See README.md for Warp permissions, terminal support and language servers.'
+  exit 0
+fi
+JETVIM_PROJECT=$(pwd -P)
+if [ -n "${1:-}" ] && [ -d "$1" ]; then
+  JETVIM_PROJECT=$(CDPATH= cd -- "$1" && pwd -P)
+  shift
+fi
+export JETVIM_PROJECT
+if ! command -v nvim >/dev/null 2>&1; then
+  echo 'Jetvim requires Neovim 0.11 or newer. No software was installed.' >&2
+  exit 1
+fi
+export XDG_CONFIG_HOME="$JETVIM_ROOT/.jetvim/config"
+export XDG_DATA_HOME="$JETVIM_ROOT/.jetvim/data"
+export XDG_STATE_HOME="$JETVIM_ROOT/.jetvim/state"
+export XDG_CACHE_HOME="$JETVIM_ROOT/.jetvim/cache"
+export TMPDIR="$JETVIM_ROOT/.jetvim/tmp"
+export NVIM_LOG_FILE="$JETVIM_ROOT/.jetvim/nvim.log"
+export NVIM_APPNAME=jetvim
+export PATH="$JETVIM_ROOT/.jetvim/tools/typescript/node_modules/.bin:$PATH"
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME" "$TMPDIR"
+cd "$JETVIM_PROJECT"
+if [ "$JETVIM_WARP_KEYS" = 1 ]; then
+  exec python3 "$JETVIM_ROOT/scripts/warp.py" "$@"
+fi
+exec nvim --noplugin -u "$JETVIM_ROOT/init.lua" -i NONE "$@"
