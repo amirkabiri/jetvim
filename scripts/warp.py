@@ -5,7 +5,6 @@ import json
 import os
 from pathlib import Path
 import pty
-import re
 import select
 import shutil
 import signal
@@ -35,16 +34,6 @@ def shortcut_sequence(action, sequences):
     return NATIVE_SEQUENCES.get(action) or sequences.get(action)
 
 
-def session_command(root, args, token):
-    """Build an argv, never a shell command; remote paths belong to Linux."""
-    if args[:1] == ['--sbx']:
-        if len(args) < 2 or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', args[1]):
-            raise ValueError('--sbx requires a valid container name.')
-        return ['sbx', 'exec', '-it', args[1], 'env',
-                'JETVIM_SESSION_TITLE=' + token, 'jetvim', *args[2:]]
-    return ['nvim', '--noplugin', '-u', str(root / 'init.lua'), '-i', 'NONE', *args]
-
-
 def main():
     root = Path(os.environ['JETVIM_ROOT'])
     home = Path(os.environ.get('JETVIM_HOME', str(root / '.jetvim')))
@@ -55,12 +44,7 @@ def main():
     if sys.platform != 'darwin' or not sys.stdin.isatty():
         raise SystemExit('--warp-keys and --terminal-keys require macOS and an interactive terminal.')
     token = 'Jetvim-' + uuid.uuid4().hex[:8]
-    try:
-        command = session_command(root, sys.argv[1:], token)
-    except ValueError as error:
-        raise SystemExit(str(error))
-    if command[0] == 'sbx' and not shutil.which('sbx'):
-        raise SystemExit('sbx must be installed on the macOS host; install Jetvim inside the container too.')
+    command = ['nvim', '--noplugin', '-u', str(root / 'init.lua'), '-i', 'NONE', *sys.argv[1:]]
     source = root / 'macos/KeyBridge.swift'
     binary = home / 'bin/keybridge'
     binary.parent.mkdir(parents=True, exist_ok=True)

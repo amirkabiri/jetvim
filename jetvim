@@ -24,29 +24,18 @@ if [ "${1:-}" = "--help" ]; then
     'Usage: jetvim [project-directory] [file ...]' \
     '       jetvim --warp-keys [project-directory] [file ...]' \
     '       jetvim --terminal-keys [project-directory] [file ...]' \
-    '       jetvim (--warp-keys|--terminal-keys) --sbx container [remote-project-directory] [file ...]' \
     'The project defaults to your current directory.' \
     'Escape enters Vim mode. Space ? opens the shortcut guide.' \
     'See README.md for macOS bridge permissions, terminal support and language servers.'
   exit 0
 fi
-JETVIM_SBX=0
-if [ "${1:-}" = "--sbx" ]; then
-  [ "$JETVIM_BRIDGE_KEYS" = 1 ] || { echo 'Jetvim: --sbx requires --warp-keys or --terminal-keys on the macOS host.' >&2; exit 1; }
-  [ "$#" -ge 2 ] || { echo 'Jetvim: --sbx requires a container name.' >&2; exit 1; }
-  case "$2" in
-    ''|[!a-zA-Z0-9]*|*[!a-zA-Z0-9_.-]*) echo 'Jetvim: invalid sbx container name.' >&2; exit 1;;
-  esac
-  command -v sbx >/dev/null 2>&1 || { echo 'Jetvim: sbx must be installed on the macOS host.' >&2; exit 1; }
-  JETVIM_SBX=1
-fi
 JETVIM_PROJECT=$(pwd -P)
-if [ "$JETVIM_SBX" = 0 ] && [ -n "${1:-}" ] && [ -d "$1" ]; then
+if [ -n "${1:-}" ] && [ -d "$1" ]; then
   JETVIM_PROJECT=$(CDPATH= cd -- "$1" && pwd -P)
   shift
 fi
 export JETVIM_PROJECT
-if [ "$JETVIM_SBX" = 0 ] && ! command -v nvim >/dev/null 2>&1; then
+if ! command -v nvim >/dev/null 2>&1; then
   echo 'Jetvim requires Neovim 0.11 or newer. No software was installed.' >&2
   exit 1
 fi

@@ -27,12 +27,8 @@ token. Warp and other apps are excluded. Keep one bridged Jetvim session per
 Terminal window; do not run separate bridges in tabs sharing the same window
 title. macOS-reserved shortcuts can still take precedence.
 
-For Jetvim installed inside an `sbx` container, leave its shell and run from the Mac:
+Permissions, physical shortcut interception and Apple Terminal's live title behavior
+require manual verification; compiler and PTY tests do not establish those behaviors.
 
-```sh
-jetvim --terminal-keys --sbx hacker
-```
-
-The helper stays on the Mac; Jetvim runs inside the container. Permissions,
-physical shortcut interception and Apple Terminal's live title behavior require
-manual verification; compiler and PTY tests do not establish those behaviors.
+In a container or remote shell, run plain `jetvim` there. Shortcut handling still
+depends on the host terminal forwarding the keys.
