@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 360" role="img" aria-labelledby="title description">
+  <title id="title">Jetvim</title>
+  <desc id="description">An original baby jet mascot wearing a keyboard diaper and a tiny Vim-green curl, with an escape-key pacifier.</desc>
+  <rect width="1000" height="360" rx="32" fill="#1e1f22"/>
+  <ellipse cx="245" cy="307" rx="139" ry="14" fill="#131417"/>
+  <path d="M133 178 49 245q-9 8 5 10l106-20M347 178l84 67q9 8-5 10l-106-20" fill="#6c95eb" stroke="#b4caff" stroke-width="5" stroke-linejoin="round"/>
+  <path d="m178 269-17 28q18-8 29-3l8-24m84-1 18 28q-18-8-29-3l-9-24" fill="#cf8e6d" stroke="#f0bc9d" stroke-width="4"/>
+  <path d="M155 221q-13-119 85-155 98 36 85 155l-20 46H175Z" fill="#6aab73" stroke="#b0d9b5" stroke-width="5"/>
+  <path d="M228 65q-16-43 20-37 27 4 9 23-15 13-20-2" fill="none" stroke="#b0d9b5" stroke-width="7" stroke-linecap="round"/>
+  <ellipse cx="240" cy="161" rx="71" ry="62" fill="#f3d4b8"/>
+  <ellipse cx="192" cy="179" rx="14" ry="8" fill="#e6a7a0"/>
+  <ellipse cx="288" cy="179" rx="14" ry="8" fill="#e6a7a0"/>
+  <path d="M199 151q11-12 22 0m38 0q11-12 22 0" fill="none" stroke="#35373c" stroke-width="5" stroke-linecap="round"/>
+  <path d="M158 219q82 26 164 0l-17 55q-65 25-130 0Z" fill="#2d4268" stroke="#b4caff" stroke-width="4"/>
+  <g fill="#1e1f22" stroke="#7d9aca" stroke-width="2">
+    <rect x="180" y="238" width="23" height="17" rx="3"/><rect x="208" y="242" width="23" height="17" rx="3"/>
+    <rect x="236" y="244" width="23" height="17" rx="3"/><rect x="264" y="242" width="23" height="17" rx="3"/>
+    <rect x="206" y="265" width="68" height="12" rx="3"/>
+  </g>
+  <g font-family="ui-monospace,monospace" font-size="12" fill="#dfe1e5" text-anchor="middle">
+    <text x="191" y="251">h</text><text x="219" y="255">j</text><text x="247" y="257">k</text><text x="275" y="255">l</text>
+  </g>
+  <rect x="214" y="176" width="52" height="31" rx="12" fill="#c191d6" stroke="#785093" stroke-width="3"/>
+  <text x="240" y="196" text-anchor="middle" fill="#1e1f22" font-family="ui-monospace,monospace" font-weight="bold" font-size="15">esc</text>
+  <circle cx="240" cy="208" r="9" fill="none" stroke="#c191d6" stroke-width="5"/>
+  <path d="m60 125-17-7m21-13-6-17m333 54 20-5m-31-13 12-15" stroke="#cf8e6d" stroke-width="5" stroke-linecap="round"/>
+  <text x="478" y="178" fill="#dfe1e5" font-family="ui-monospace,SFMono-Regular,Consolas,monospace" font-size="79" font-weight="bold" letter-spacing="-5">jet<tspan fill="#6aab73">vim</tspan></text>
+  <text x="485" y="225" fill="#bcbec4" font-family="ui-monospace,monospace" font-size="20">born knowing your shortcuts.</text>
+  <text x="485" y="266" fill="#868a91" font-family="ui-monospace,monospace" font-size="15">still needs help quitting.</text>
+</svg>

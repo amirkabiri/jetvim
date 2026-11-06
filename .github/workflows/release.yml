@@ -1,0 +1,28 @@
+name: Release archive
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Audit and package public source
+        run: |
+          python3 scripts/public-audit.py
+          python3 tests/package.py
+      - name: Publish archive and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" .jetvim/dist/jetvim.tar.gz .jetvim/dist/SHA256SUMS --verify-tag --generate-notes

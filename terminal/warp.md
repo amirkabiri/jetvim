@@ -1,6 +1,7 @@
 # Warp setup
 
-Start from this checkout with `./jetvim`. Jetvim uses Neovim's native support for
+Start installed Jetvim with `jetvim`, or use `./jetvim` from a source checkout.
+Jetvim uses Neovim's native support for
 extended terminal keys. [Warp documents Kitty keyboard protocol support](https://docs.warp.dev/terminal/more-features/full-screen-apps),
 but [Warp's key forwarding issue](https://github.com/warpdotdev/warp/issues/14300)
 also records versions that consume Command shortcuts or lack configurable
@@ -13,10 +14,14 @@ reaches Jetvim. The editor cannot recover a key that Warp has consumed.
 ./jetvim --warp-keys
 ```
 
-The wrapper builds `macos/KeyBridge.swift` into `.jetvim/bin/keybridge`, then
-starts Neovim inside a private PTY. The helper translates the configured macOS
-shortcuts directly into that PTY. It does not synthesize global keyboard events.
-All files and compiler module caches are local to this checkout.
+The bridge requires Python 3 and the Swift compiler. The wrapper builds
+`macos/KeyBridge.swift` into `$JETVIM_HOME/bin/keybridge`, then starts Neovim
+inside a private PTY. The helper translates the configured macOS shortcuts
+directly into that PTY. It does not synthesize global keyboard events.
+
+The default installed helper is `~/.jetvim/bin/keybridge`; development checkouts
+use `.jetvim/bin/keybridge` inside the checkout. Compiler module caches live in
+`$JETVIM_HOME/cache/swift`. A custom `JETVIM_HOME` moves both locations.
 
 macOS must authorize keyboard interception. If the helper reports missing
 permission, open System Settings → Privacy & Security → **Device Control and Data
@@ -26,10 +31,12 @@ If the helper is absent, click **+**, press **Command-Shift-G**, and enter its
 full path, for example:
 
 ```text
-/path/to/jetvim/.jetvim/bin/keybridge
+~/.jetvim/bin/keybridge
 ```
 
-Then rerun `./jetvim --warp-keys`. Depending on
+Use the actual helper path printed in the error for a development checkout or
+custom runtime location. Then rerun `jetvim --warp-keys` (or `./jetvim --warp-keys`
+from source). Depending on
 macOS policy, Input Monitoring may also be necessary. Jetvim neither requests
 permissions automatically nor changes those settings.
 
