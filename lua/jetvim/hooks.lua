@@ -77,9 +77,27 @@ next_hook = function(state)
       next_hook(state); return
     end
     -- External formatters may change disk. Never replace edits typed since save.
-    local ok = pcall(vim.api.nvim_buf_call, state.buf, function() local autoread = vim.bo.autoread; vim.bo.autoread = true; local read_ok, err = pcall(vim.cmd, 'silent keepalt checktime'); vim.bo.autoread = autoread; if not read_ok then error(err) end end)
+    local function reload()
+      vim.api.nvim_buf_call(state.buf, function()
+        local autoread = vim.bo.autoread
+        vim.bo.autoread = true
+        local read_ok, err = pcall(vim.cmd, 'silent keepalt checktime')
+        vim.bo.autoread = autoread
+        if not read_ok then error(err) end
+      end)
+    end
+    local disk = package.loaded['jetvim.disk']
+    local ok = pcall(function()
+      if disk and disk.with_native_reload then disk.with_native_reload(state.buf, reload) else reload() end
+    end)
     if not ok then notify(name .. ': cannot reload formatted file') end
-    if valid(state) and not vim.bo[state.buf].modified then state.tick = vim.api.nvim_buf_get_changedtick(state.buf) end
+    if ok and valid(state) and not vim.bo[state.buf].modified then
+      state.tick = vim.api.nvim_buf_get_changedtick(state.buf)
+      local autosave, disk = package.loaded['jetvim.autosave'], package.loaded['jetvim.disk']
+      if autosave and autosave.acknowledge(state.buf) and disk and disk.acknowledge then
+        disk.acknowledge(state.buf, autosave.states[state.buf].expected)
+      end
+    end
     next_hook(state)
   end
   if hook.diagnostics then require('jetvim.api').diagnostics(source, state.buf, {}) end
@@ -87,7 +105,15 @@ next_hook = function(state)
   for _, value in ipairs(hook.command) do
     argv[#argv + 1] = value:gsub('{([%w_]+)}', { file = state.path, project = state.root })
   end
-  local ok, job = pcall(vim.system, argv, { cwd = state.root, text = true, timeout = hook.timeout_ms or 10000 }, function(result)
+  local options = { cwd = state.root, text = true, timeout = hook.timeout_ms or 10000 }
+  if hook.workspace then
+    local success, resolved, err = pcall(require('jetvim.workspace').resolve, state.root, state.path, argv, state.tool_paths)
+    if not success then err, resolved = resolved, nil end
+    if not resolved then notify(name .. ': ' .. tostring(err)); next_hook(state); return end
+    if resolved.skip then next_hook(state); return end
+    argv, options.cwd, options.env = resolved.argv, resolved.cwd, resolved.env
+  end
+  local ok, job = pcall(vim.system, argv, options, function(result)
     vim.schedule(function() finish(result) end)
   end)
   if ok then state.job = job else notify(name .. ': ' .. tostring(job)); next_hook(state) end
@@ -100,6 +126,7 @@ start = function(buf)
   for _, hook in ipairs((require('jetvim.settings').get().hooks or {}).after_save or {}) do
     local ok, matches = pcall(function()
       assert(type(hook) == 'table' and type(hook.pattern) == 'string' and type(hook.command) == 'table' and vim.islist(hook.command) and #hook.command > 0, 'Expected pattern and command argv')
+      assert(hook.workspace == nil or type(hook.workspace) == 'boolean', 'workspace must be a boolean')
       assert(hook.name == nil or type(hook.name) == 'string' and hook.name ~= '', 'Hook name must be a nonempty string')
       for _, arg in ipairs(hook.command) do assert(type(arg) == 'string', 'Command arguments must be strings') end
       assert(hook.diagnostics == nil or hook.diagnostics == 'eslint' or type(hook.diagnostics) == 'function', 'Unknown diagnostic parser')
@@ -113,7 +140,7 @@ start = function(buf)
     end
   end
   if #hooks == 0 then return end
-  local state = { buf = buf, path = path, name = vim.api.nvim_buf_get_name(buf), root = require('jetvim.project').root, tick = vim.api.nvim_buf_get_changedtick(buf), hooks = hooks, index = 0, epoch = M.epoch }
+  local state = { buf = buf, path = path, name = vim.api.nvim_buf_get_name(buf), root = require('jetvim.project').root, tick = vim.api.nvim_buf_get_changedtick(buf), tool_paths = (require('jetvim.settings').get().hooks or {}).tool_paths or {}, hooks = hooks, index = 0, epoch = M.epoch }
   M.states[buf] = state
   vim.b[buf].jetvim_hook_running = true
   next_hook(state)

@@ -7,16 +7,20 @@ hooks. Existing project Lua only runs after `:JetvimTrustProject`.
 ```lua
 return {
   hooks = {
+    -- Optional fallback directories, relative to this project.
+    tool_paths = { 'packages/tooling/.bin' },
     after_save = {
       {
         name = 'format',
         pattern = [[\.(js|jsx|ts|tsx)$]],
-        command = { 'npx', '--no-install', 'prettier', '--write', '{file}' },
+        workspace = true,
+        command = { 'prettier', '--write', '{file}' },
       },
       {
         name = 'eslint',
         pattern = [[\.js$]],
-        command = { 'npx', '--no-install', 'eslint', '--format', 'json', '{file}' },
+        workspace = true,
+        command = { 'eslint', '--format', 'json', '{file}' },
         diagnostics = 'eslint',
         timeout_ms = 10000,
       },
@@ -27,12 +31,24 @@ return {
 ```
 
 Patterns use Vim's **very magic** regex syntax. Commands run asynchronously in
-project order, from the project directory. `{file}` and `{project}` are replaced
+project order. Ordinary hooks run from the project directory. `{file}` and `{project}` are replaced
 inside individual arguments; shell operators are not interpreted. Required tools
 must already be installed. Hooks run on manual saves and autosaves. Repeated
 saves coalesce while a job runs. Formatters reload clean buffers; edits typed
 while a formatter runs are preserved, and autosave pauses on external changes.
 The timeout defaults to 10 seconds (maximum 120 seconds).
+
+`workspace = true` runs from the closest ancestor `package.json` directory,
+bounded by the selected project. It uses the nearest installed
+`node_modules/.bin` tool, then the optional `hooks.tool_paths` directories. It
+never downloads tools or falls back to a globally installed executable. A
+project `tool_paths` list replaces the user list; `{}` clears inherited paths.
+
+Workspace ESLint uses the nearest `eslint.config.js/mjs/cjs`, legacy
+`.eslintrc*`, or package `eslintConfig`, with the corresponding flat/legacy mode.
+It honors an explicit `--config` argument. Files without a project-bounded
+configuration are skipped and their previous hook diagnostics cleared. Ordinary
+hooks without `workspace = true` retain their existing command behavior.
 
 ESLint JSON findings appear as editor diagnostics, including left signs and the
 right overview. Exit 1 means findings; other failures show a warning. Newer edits

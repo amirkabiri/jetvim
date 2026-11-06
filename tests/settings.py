@@ -67,19 +67,24 @@ with tempfile.TemporaryDirectory(prefix='layered-settings-', dir=STATE) as direc
         editor.settings()
         write_code(editor, [
             'return {autosave={enabled=true,delay_ms=1600},',
-            ' hooks={after_save={',
+            " hooks={tool_paths={'packages/tooling/.bin'},after_save={",
             '  {pattern="^NEVER_MATCH$",callback=function() return "global-one" end},',
             '  {pattern="^NEVER_MATCH$",callback=function() return "global-two" end},',
             ' }}, git={blame={enabled=false,mode="all"}}}',
         ])
         equal(editor.lua('return require("jetvim.settings").get().hooks.after_save[2].callback()'), 'global-two', 'Lua callback values are preserved')
         editor.settings(scope='Project settings')
-        write_code(editor, ['return {autosave={enabled=false},hooks={after_save={{pattern="^NEVER_MATCH$",callback=function() return "project" end}}},git={blame={enabled=true}}}'])
+        write_code(editor, ['return {autosave={enabled=false},hooks={tool_paths={"packages/local/.bin"},after_save={{pattern="^NEVER_MATCH$",callback=function() return "project" end}}},git={blame={enabled=true}}}'])
         equal(editor.lua('return #require("jetvim.settings").get().hooks.after_save'), 1, 'project hook list replaces full global list')
+        equal(editor.lua('return require("jetvim.settings").get().hooks.tool_paths'), ['packages/local/.bin'], 'project tool_paths replaces global list')
         equal(editor.lua('return require("jetvim.settings").get().hooks.after_save[1].callback()'), 'project', 'project callback replaces global callback')
         equal(editor.lua('return require("jetvim.settings").get().git.blame'), {'enabled': True, 'mode': 'all'}, 'sparse blame settings inherit global mode')
-        write_code(editor, ['return {autosave={enabled=false},hooks={after_save={}}}'])
+        write_code(editor, ['return {autosave={enabled=false},hooks={tool_paths={},after_save={}}}'])
         equal(editor.lua('return #require("jetvim.settings").get().hooks.after_save'), 0, 'explicit empty hook list clears inherited hooks')
+        equal(editor.lua('return #require("jetvim.settings").get().hooks.tool_paths'), 0, 'empty tool_paths clears inherited fallback directories')
+        write_code(editor, ['return {hooks={tool_paths={"../escape"}}}'])
+        equal(editor.lua('return #require("jetvim.settings").get().hooks.tool_paths'), 0, 'escaping tool_paths rejects layer and retains valid settings')
+        write_code(editor, ['return {autosave={enabled=false},hooks={tool_paths={},after_save={}}}'])
         equal(json.loads((home / 'trusted-projects.json').read_text())['projects'][str(project_a.resolve())], True, 'trust persisted by real project path')
     finally:
         editor.close()

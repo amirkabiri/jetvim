@@ -9,8 +9,8 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 GROUPS = {
     'core': ('integration', 'tui', 'launcher', 'sidebar', 'selection', 'tabs', 'appearance',
-             'paging', 'search', 'settings', 'hooks', 'blame', 'blame_tui', 'terminal_layout', 'terminal_keys', 'resize', 'layout', 'overview', 'vcs_cache', 'gutter_cache', 'autosave', 'git_layout'),
-    'git': ('git_changes', 'vcs', 'git_gutter', ('blame', '--real')),
+             'disk', 'workspace', 'workspace_autosave', 'tree_create', 'paging', 'search', 'settings', 'hooks', 'blame', 'blame_tui', 'terminal_layout', 'terminal_keys', 'resize', 'layout', 'overview', 'vcs_cache', 'gutter_cache', 'autosave', 'git_layout'),
+    'git': ('git_changes', 'vcs', 'git_gutter', ('blame', '--real'), ('disk', '--git-restore')),
     'languages': ('lsp', 'go_lsp'),
     'installer': ('install',),
 }

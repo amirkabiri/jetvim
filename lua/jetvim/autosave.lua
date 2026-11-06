@@ -30,6 +30,40 @@ local function track(buf, read)
   elseif read then state.expected, state.safe, state.error = stat(name), true, nil end
   return state
 end
+-- Accept a formatter's metadata only after proving that its disk output is
+-- exactly the clean buffer. A stale formatter result must never authorize a
+-- later autosave to overwrite unrelated external changes.
+function M.acknowledge(buf)
+  local name = path(buf)
+  if not name or vim.bo[buf].modified then return false end
+  local encoding = vim.bo[buf].fileencoding
+  if encoding ~= '' and encoding ~= 'utf-8' then return false end
+  local before, tick = stat(name), vim.api.nvim_buf_get_changedtick(buf)
+  if not before or before.size > 5 * 1024 * 1024 then return false end
+  local fd = vim.uv.fs_open(name, 'r', 438)
+  if not fd then return false end
+  local bytes = vim.uv.fs_read(fd, before.size, 0)
+  vim.uv.fs_close(fd)
+  if not bytes or #bytes ~= before.size then return false end
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local newline = vim.bo[buf].fileformat == 'dos' and '\r\n' or vim.bo[buf].fileformat == 'mac' and '\r' or '\n'
+  local text = table.concat(lines, newline) .. (vim.bo[buf].endofline and newline or '')
+  if #lines == 1 and lines[1] == '' then
+    local writing = M.writing; M.writing = true
+    local ok, empty = pcall(vim.api.nvim_buf_call, buf, function() return vim.fn.wordcount().bytes == 0 end)
+    M.writing = writing
+    if not ok then return false end
+    if empty then text = '' end
+  end
+  if vim.bo[buf].bomb then text = string.char(239, 187, 191) .. text end
+  local after = stat(name)
+  if bytes ~= text or not vim.deep_equal(before, after) or vim.bo[buf].modified
+    or vim.api.nvim_buf_get_changedtick(buf) ~= tick then return false end
+  local state = track(buf, false)
+  if not state then return false end
+  state.expected, state.safe, state.error = after, true, nil
+  return true
+end
 local function report(state, message)
   if state.error == message then return end
   state.error = message

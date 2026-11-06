@@ -34,6 +34,12 @@ local function valid_layer(value)
   end
   if value.hooks ~= nil then
     if type(value.hooks) ~= 'table' then return false end
+    if value.hooks.tool_paths ~= nil then
+      if type(value.hooks.tool_paths) ~= 'table' or not vim.islist(value.hooks.tool_paths) then return false end
+      for _, path in ipairs(value.hooks.tool_paths) do
+        if type(path) ~= 'string' or path == '' or path:sub(1, 1) == '/' or path:match('^%.%./') or path:match('/%.%./') or path:match('/%.%.$') or path == '..' then return false end
+      end
+    end
     if value.hooks.after_save ~= nil and (type(value.hooks.after_save) ~= 'table' or not vim.islist(value.hooks.after_save)) then return false end
   end
   if value.git ~= nil then
@@ -51,7 +57,7 @@ end
 local function merge(base, override, prefix)
   local result = vim.deepcopy(base)
   for key, value in pairs(override) do
-    local replace = prefix == 'hooks' and key == 'after_save'
+    local replace = prefix == 'hooks' and (key == 'after_save' or key == 'tool_paths')
       or type(value) == 'table' and next(value) ~= nil and vim.islist(value)
     if type(value) == 'table' and type(result[key]) == 'table' and not replace then
       result[key] = merge(result[key], value, prefix == '' and tostring(key) or prefix .. '.' .. tostring(key))
