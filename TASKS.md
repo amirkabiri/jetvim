@@ -20,7 +20,7 @@ All development changes and test fixtures stay inside this checkout.
 | Git-status filename colors | sidebar provider/tree + appearance tabs; git_tabs authors lead-only Git tests | Independently validated: 28 real Git + 29 mocked cache checks | Modified tracked filenames blue; untracked filenames red in tree and editor tabs; icons retain type colors |
 | Fn-Up/Down paging reaches file boundaries | selection paging module + git_tabs key integration | Independently validated: 31 checks passed | Native Page Up/Down bytes; page-sized movement clamped to first/last line, preferred column and typing mode preserved |
 | TypeScript server enabled but declaration action unavailable | appearance agent (local setup) | Independently validated: 14 real server checks passed | Enabled config preserved; local server/TypeScript 6.0.3 installed; actual Command-B definition jump succeeds |
-| Initialize Git, validate delegated changes, then commit | Lead | All required checks passed; implementation commit prepared | Independently inspect diffs and run required tests before committing |
+| Initialize Git, validate delegated changes, then commit | Lead | Complete: implementation committed as `c4db90e` after independent validation | Independently inspect diffs and run required tests before committing |
 | Support additional terminals over time | Future terminal adapters | Backlog | Shared actions; terminal-specific forwarding and focus validation |
 | Complete JetBrains navigation/editing feature parity | Future iterations | Partial implementation | Remaining capabilities documented in README; no blanket parity claim |
 
@@ -58,3 +58,7 @@ filename labels blocking TUI startup. The lead reran the affected checks.
 
 Live macOS permission grants and focused-Warp key interception remain manual
 verification. Other terminals and complete IntelliJ feature parity remain backlog.
+
+Implementation milestone: `c4db90e` — Build Jetvim with macOS JetBrains navigation
+and project tools. The lead created this commit; agents created no commits and ran
+no Git commands. This tracker update records the completed validation milestone.
