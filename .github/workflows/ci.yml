@@ -59,6 +59,7 @@ jobs:
           mkdir -p .jetvim/bin .jetvim/cache/swift .jetvim/tmp
           TMPDIR="$PWD/.jetvim/tmp" swiftc -module-cache-path "$PWD/.jetvim/cache/swift" macos/KeyBridge.swift -o .jetvim/bin/keybridge-ci
           JETVIM_KEYBRIDGE_CHECKER="$PWD/.jetvim/bin/keybridge-ci" python3 tests/fn_bridge.py
+          JETVIM_KEYBRIDGE_CHECKER="$PWD/.jetvim/bin/keybridge-ci" python3 tests/terminal_bridge.py
       - name: Verify public archive
         run: python3 tests/package.py
   language-servers:

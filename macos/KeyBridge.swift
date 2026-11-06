@@ -3,7 +3,7 @@ import ApplicationServices
 import Foundation
 
 // This helper never posts global synthetic events. It suppresses only mapped
-// shortcuts in a Warp window whose accessibility title contains our unique token,
+// shortcuts in the selected terminal's focused window when its title contains our unique token,
 // then writes action IDs to its parent, which forwards bytes to Jetvim's own PTY.
 struct Binding: Decodable {
     let id: String
@@ -117,8 +117,56 @@ func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data((message + "\n").utf8))
     exit(1)
 }
-guard CommandLine.arguments.count == 3 else { fail("Usage: keybridge <keymap.json> <session-title>") }
+enum BridgeTarget: String, CaseIterable {
+    case warp, terminal
+    var name: String { self == .warp ? "Warp" : "Apple Terminal" }
+    var launchFlag: String { self == .warp ? "--warp-keys" : "--terminal-keys" }
+    func acceptsBundle(_ bundle: String?) -> Bool {
+        guard let bundle = bundle else { return false }
+        return self == .warp ? bundle.hasPrefix("dev.warp.") : bundle == "com.apple.Terminal"
+    }
+}
+func ownsSession(target: BridgeTarget, bundle: String?, title: String?, token: String) -> Bool {
+    guard !token.isEmpty, target.acceptsBundle(bundle), let title = title else { return false }
+    return title.contains(token)
+}
+func checkFocus() {
+    var checked = 0
+    let token = "Jetvim-focus-check"
+    for target in BridgeTarget.allCases {
+        let bundle = target == .warp ? "dev.warp.Warp-Stable" : "com.apple.Terminal"
+        let other = target == .warp ? "com.apple.Terminal" : "dev.warp.Warp-Stable"
+        let lookalike = target == .warp ? "evil.dev.warp.Warp-Stable" : "com.apple.Terminal.fake"
+        let cases: [(String?, String?, String, Bool)] = [
+            (bundle, token, token, true),
+            (bundle, "project — " + token + " — shell", token, true),
+            (bundle, "another session", token, false),
+            (bundle, nil, token, false),
+            (bundle, "", token, false),
+            (nil, token, token, false),
+            (bundle, token, "", false),
+            (other, token, token, false),
+            (lookalike, token, token, false),
+            ("com.apple.finder", token, token, false),
+        ]
+        for (candidate, title, session, expected) in cases {
+            guard ownsSession(target: target, bundle: candidate, title: title, token: session) == expected
+                else { fail("Focus guard self-check failed at case \(checked + 1)") }
+            checked += 1
+        }
+    }
+    print("FOCUS GUARD OK: \(checked) cases (no Accessibility or event tap)")
+}
+guard (3...4).contains(CommandLine.arguments.count) else {
+    fail("Usage: keybridge <keymap.json> <session-title> [warp|terminal]")
+}
 let titleToken = CommandLine.arguments[2]
+let targetName = CommandLine.arguments.count == 4 ? CommandLine.arguments[3] : "warp"
+let target: BridgeTarget = {
+    guard let parsed = BridgeTarget(rawValue: targetName) else { fail("Unknown bridge target: " + targetName) }
+    return parsed
+}()
+guard !titleToken.isEmpty else { fail("Session title must not be empty") }
 do {
     let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
     for binding in try JSONDecoder().decode([Binding].self, from: data) {
@@ -141,10 +189,11 @@ if titleToken == "--check-keymap" {
     exit(0)
 }
 if titleToken == "--check-fn-keys" { checkFnKeys(); exit(0) }
+if titleToken == "--check-focus" { checkFocus(); exit(0) }
 
 func ownsFocus() -> Bool {
     guard let app = NSWorkspace.shared.frontmostApplication,
-          app.bundleIdentifier?.hasPrefix("dev.warp.") == true else { return false }
+          target.acceptsBundle(app.bundleIdentifier) else { return false }
     let axApp = AXUIElementCreateApplication(app.processIdentifier)
     var windowValue: CFTypeRef?
     guard AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &windowValue) == .success,
@@ -153,7 +202,7 @@ func ownsFocus() -> Bool {
     var titleValue: CFTypeRef?
     guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleValue) == .success,
           let title = titleValue as? String else { return false }
-    return title.contains(titleToken)
+    return ownsSession(target: target, bundle: app.bundleIdentifier, title: title, token: titleToken)
 }
 func emit(_ id: String) {
     FileHandle.standardOutput.write(Data((id + "\n").utf8))
@@ -197,13 +246,13 @@ let callback: CGEventTapCallBack = { _, type, event, _ in
 
 guard AXIsProcessTrusted() else {
     fail("""
-    Jetvim's Warp bridge needs permission to intercept its shortcuts.
+    Jetvim's \(target.name) bridge needs permission to intercept its shortcuts.
     Open System Settings > Privacy & Security > Device Control and Data Access (macOS 27+).
     On earlier macOS versions, this permission is named Accessibility.
-    Enable Warp or the keybridge helper shown there. If the helper is missing,
+    Enable \(target.name) or the keybridge helper shown there. If the helper is missing,
     click +, press Command-Shift-G, and enter this full path:
     \(CommandLine.arguments[0])
-    Then retry ./jetvim --warp-keys. No settings were changed.
+    Then retry ./jetvim \(target.launchFlag). No settings were changed.
     """)
 }
 let mask = (CGEventMask(1) << CGEventType.keyDown.rawValue) | (CGEventMask(1) << CGEventType.flagsChanged.rawValue)

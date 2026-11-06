@@ -14,6 +14,22 @@ reaches Jetvim. The editor cannot recover a key that Warp has consumed.
 ./jetvim --warp-keys
 ```
 
+For Jetvim inside an `sbx` Linux container, native terminal key forwarding needs
+no Accessibility permission. If Warp consumes the shortcuts, this optional
+bridge mode runs on the Mac. Exit the container shell and run from Warp:
+
+```sh
+jetvim --warp-keys --sbx hacker /path/inside/container
+```
+
+Install Jetvim on both the Mac and container first; `sbx` must be on the Mac's
+PATH and `jetvim` on the container's PATH. Omit the remote path to use the
+container's default directory. The bridge forwards shortcuts through
+`sbx exec -it`; the remote editor sets the unique session title used by the
+existing focus guard. Accessibility authorization stays on the Mac. Remote
+paths and file arguments are passed literally, without a shell. This mode's
+transport has automated PTY tests; physical Warp/container focus needs a live check.
+
 The bridge requires Python 3 and the Swift compiler. The wrapper builds
 `macos/KeyBridge.swift` into `$JETVIM_HOME/bin/keybridge`, then starts Neovim
 inside a private PTY. The helper translates the configured macOS shortcuts

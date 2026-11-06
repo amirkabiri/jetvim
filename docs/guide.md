@@ -233,8 +233,11 @@ the user for a terminal to receive them. No system settings are changed here.
   review, not an automatically installed configuration. The shortcut guide also
   lists each literal **Send Escape Sequence** value for manual setup. See
   [iTerm2's key mapping documentation](https://iterm2.com/documentation-preferences-profiles-keys.html).
-- **Apple Terminal and other terminals:** use native keys where supported and the
-  normal-mode fallbacks. Additional terminal adapters can be added to `scripts/generate.py`.
+- **Apple Terminal:** native keys and normal-mode fallbacks need no permission;
+  the optional `jetvim --terminal-keys` bridge supports scoped Command shortcuts.
+  See [setup, permissions and limitations](../terminal/apple-terminal.md).
+- **Other terminals:** use native keys where supported and normal-mode fallbacks.
+  Additional terminal adapters can be added to `scripts/generate.py`.
 
 ## Find in the current file
 

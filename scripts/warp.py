@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import pty
+import re
 import select
 import shutil
 import signal
@@ -34,28 +35,51 @@ def shortcut_sequence(action, sequences):
     return NATIVE_SEQUENCES.get(action) or sequences.get(action)
 
 
+def session_command(root, args, token):
+    """Build an argv, never a shell command; remote paths belong to Linux."""
+    if args[:1] == ['--sbx']:
+        if len(args) < 2 or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', args[1]):
+            raise ValueError('--sbx requires a valid container name.')
+        return ['sbx', 'exec', '-it', args[1], 'env',
+                'JETVIM_SESSION_TITLE=' + token, 'jetvim', *args[2:]]
+    return ['nvim', '--noplugin', '-u', str(root / 'init.lua'), '-i', 'NONE', *args]
+
+
 def main():
     root = Path(os.environ['JETVIM_ROOT'])
     home = Path(os.environ.get('JETVIM_HOME', str(root / '.jetvim')))
+    app = os.environ.get('JETVIM_BRIDGE_APP', 'warp')
+    if app not in ('warp', 'terminal'):
+        raise SystemExit('JETVIM_BRIDGE_APP must be warp or terminal.')
+    app_name = 'Terminal' if app == 'terminal' else 'Warp'
     if sys.platform != 'darwin' or not sys.stdin.isatty():
-        raise SystemExit('--warp-keys requires macOS and an interactive terminal.')
+        raise SystemExit('--warp-keys and --terminal-keys require macOS and an interactive terminal.')
+    token = 'Jetvim-' + uuid.uuid4().hex[:8]
+    try:
+        command = session_command(root, sys.argv[1:], token)
+    except ValueError as error:
+        raise SystemExit(str(error))
+    if command[0] == 'sbx' and not shutil.which('sbx'):
+        raise SystemExit('sbx must be installed on the macOS host; install Jetvim inside the container too.')
     source = root / 'macos/KeyBridge.swift'
     binary = home / 'bin/keybridge'
     binary.parent.mkdir(parents=True, exist_ok=True)
     if not binary.exists() or binary.stat().st_mtime < source.stat().st_mtime:
         compiler = shutil.which('swiftc')
         if not compiler:
-            raise SystemExit('The Warp bridge needs the Swift compiler. Plain ./jetvim works without it.')
+            raise SystemExit('The macOS key bridge needs the Swift compiler. Plain ./jetvim works without it.')
         cache = home / 'cache/swift'
         cache.mkdir(parents=True, exist_ok=True)
-        print(f'Building the optional Warp key bridge in {home} …', flush=True)
+        print(f'Building the optional {app_name} key bridge in {home} …', flush=True)
         subprocess.run([compiler, '-module-cache-path', str(cache), str(source), '-o', str(binary)], check=True)
-    token = 'Jetvim-' + uuid.uuid4().hex[:8]
     env = os.environ.copy()
     env['JETVIM_SESSION_TITLE'] = token
     bindings = json.loads((root / 'config/keymap.json').read_text())
     sequences = key_sequences(bindings)
-    bridge = subprocess.Popen([str(binary), str(root / 'config/keymap.json'), token], stdout=subprocess.PIPE)
+    helper_args = [str(binary), str(root / 'config/keymap.json'), token]
+    if app == 'terminal':
+        helper_args.append('terminal')
+    bridge = subprocess.Popen(helper_args, stdout=subprocess.PIPE)
     master = slave = None
     editor = None
     original = termios.tcgetattr(sys.stdin.fileno())
@@ -69,7 +93,7 @@ def main():
         # The helper reports readiness only after macOS has authorized the tap.
         ready, _, _ = select.select([bridge.stdout], [], [], 10)
         if not ready or bridge.stdout.readline() != b'READY\n':
-            raise SystemExit('Warp key bridge could not start. Use ./jetvim for the standard terminal mode.')
+            raise SystemExit(f'{app_name} key bridge could not start. Use ./jetvim for the standard terminal mode.')
         master, slave = pty.openpty()
 
         def resize(*_):
@@ -82,7 +106,7 @@ def main():
             os.setsid()
             fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
-        editor = subprocess.Popen(['nvim', '--noplugin', '-u', str(root / 'init.lua'), '-i', 'NONE', *sys.argv[1:]],
+        editor = subprocess.Popen(command,
                                   stdin=slave, stdout=slave, stderr=slave, env=env,
                                   cwd=os.environ.get('JETVIM_PROJECT', str(root)), preexec_fn=controlling_terminal)
         os.close(slave)
@@ -109,7 +133,7 @@ def main():
                 else:
                     data = os.read(bridge.stdout.fileno(), 4096)
                     if not data:
-                        raise RuntimeError('The Warp key bridge exited unexpectedly.')
+                        raise RuntimeError('The macOS key bridge exited unexpectedly.')
                     pending += data
                     while b'\n' in pending:
                         line, pending = pending.split(b'\n', 1)
@@ -130,7 +154,7 @@ def main():
             if descriptor is not None:
                 os.close(descriptor)
         # Reset a session title set by this wrapper; no preference files change.
-        sys.stdout.write('\x1b]0;Warp\x07')
+        sys.stdout.write(f'\x1b]0;{app_name}\x07')
         sys.stdout.flush()
 
 
