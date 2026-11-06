@@ -245,12 +245,24 @@ function M.target(previous)
   local er, ec = position(candidates[1][2])
   return { sr, sc, er, ec }
 end
+local function unchanged(buf, state)
+  if not state or state.filetype ~= vim.bo[buf].filetype then return false end
+  local tick = vim.api.nvim_buf_get_changedtick(buf)
+  if state.tick ~= tick then
+    -- Native writes (including autosave) increment changedtick without editing
+    -- text. Preserve history only after comparing the exact saved line snapshot.
+    if not vim.deep_equal(state.lines, vim.api.nvim_buf_get_lines(buf, 0, -1, false)) then return false end
+    state.tick = tick
+  end
+  return true
+end
 function M.extend()
   local edit = require('jetvim.edit')
   local buf, tick = vim.api.nvim_get_current_buf(), vim.api.nvim_buf_get_changedtick(0)
   local previous, state = edit.selection(), M.states[buf]
-  if not state or state.tick ~= tick or state.filetype ~= vim.bo.filetype or not same(state.current, previous) then
-    state = { tick = tick, filetype = vim.bo.filetype, history = {} }; M.states[buf] = state
+  if not unchanged(buf, state) or not same(state.current, previous) then
+    state = { tick = tick, filetype = vim.bo.filetype, history = {},
+      lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false) }; M.states[buf] = state
   end
   local target = M.target(previous)
   if not target then return end
@@ -261,7 +273,7 @@ end
 function M.shrink()
   local edit = require('jetvim.edit')
   local state = M.states[vim.api.nvim_get_current_buf()]
-  if not state or state.tick ~= vim.api.nvim_buf_get_changedtick(0) or state.filetype ~= vim.bo.filetype
+  if not unchanged(vim.api.nvim_get_current_buf(), state)
     or not same(state.current, edit.selection()) then return end
   local previous = table.remove(state.history)
   if not previous then return end
