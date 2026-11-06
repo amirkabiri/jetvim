@@ -156,27 +156,41 @@ with tempfile.TemporaryDirectory(prefix='project-search-',dir=STATE) as director
         lua("""_G.project_search_system=vim.system; _G.project_search_jobs={}; vim.system=function(argv,opts,done)
           local job={argv=argv,cwd=opts.cwd,killed=false}; table.insert(_G.project_search_jobs,job)
           local text=argv[#argv-1]
-          vim.defer_fn(function()
-            if text=='timeout' then done({code=124}); return end
-            local line=vim.json.encode({type='match',data={path={text='./a.txt'},lines={text=text},line_number=1,submatches={{start=0}}}})..'\\n'
-            opts.stdout(nil,text=='cap' and line:rep(501) or line); done({code=0})
-          end,text=='old' and 650 or 30)
+          function job.deliver()
+            if text=='timeout' then done({code=124})
+            else
+              local line=vim.json.encode({type='match',data={path={text='./a.txt'},lines={text=text},line_number=1,submatches={{start=0}}}})..'\\n'
+              opts.stdout(nil,text=='cap' and line:rep(501) or line); done({code=0})
+            end
+            -- Resolve after all stdout/completion callbacks have been scheduled.
+            vim.schedule(function() job.delivered=true end)
+          end
+          -- Old jobs remain active until the test deliberately delivers their
+          -- callbacks after cancellation, regardless of host/RPC latency.
+          if text~='old' then vim.defer_fn(job.deliver,30) end
           return {kill=function()job.killed=true end}
         end; return true""")
-        choose(scope);raw(native);raw(b'old');time.sleep(.15)
+        choose(scope);raw(native);raw(b'old')
         wait('return #_G.project_search_jobs==1','old query started')
+        equal(lua('local s=require("jetvim.project_search").state; return s.busy and s.job~=nil'),True,'old query remains active until cancelled')
         keys('<C-u>');raw(b'new')
         wait('local s=require("jetvim.project_search").state; return #_G.project_search_jobs==2 and s and not s.busy and not s.timer','new query finished')
-        time.sleep(.6)
-        equal(lua('return require("jetvim.project_search").state.items[1].label:find("new",1,true)~=nil'),True,'stale job cannot replace new results')
+        new_items=lua('return require("jetvim.project_search").state.items')
+        equal([item['label'] for item in new_items],['a.txt:1  new'],'new query contains only its current result')
+        lua('_G.project_search_jobs[1].deliver(); return true')
+        wait('return _G.project_search_jobs[1].delivered','stale callbacks delivered after newer results')
+        equal(lua('return require("jetvim.project_search").state.items'),new_items,'stale job cannot append or replace any new result')
         equal(lua('return _G.project_search_jobs[1].killed'),True,'changing query kills active job')
         equal(lua('return _G.project_search_jobs[2].cwd'),str(scope),'async search uses guarded selected cwd')
         equal(lua('local a=_G.project_search_jobs[2].argv; return {a[#a-2],a[#a-1],a[#a]}'),['--','new','.'],'query is an argv value after option terminator')
         equal(lua('return vim.tbl_contains(_G.project_search_jobs[2].argv,"!.git")'),True,'Git metadata excluded without a Git fixture')
-        keys('<C-u>');raw(b'old');time.sleep(.2)
+        keys('<C-u>');raw(b'old')
         wait('return #_G.project_search_jobs==3','cancelled query started')
-        keys('<Esc>');time.sleep(.75)
+        keys('<Esc>')
+        wait('return require("jetvim.project_search").state==nil','Escape closes active query')
         equal(lua('return _G.project_search_jobs[3].killed'),True,'Escape kills pending job')
+        lua('_G.project_search_jobs[3].deliver(); return true')
+        wait('return _G.project_search_jobs[3].delivered','cancelled callbacks delivered after close')
         equal(lua('return require("jetvim.project_search").state==nil'),True,'cancelled callback never resurrects modal')
         equal(lua('local n=0; for _,b in ipairs(vim.api.nvim_list_bufs()) do if vim.bo[b].filetype=="jetvim-project-search" then n=n+1 end end; return n'),0,'no leaked modal buffers')
         equal(lua('return #vim.api.nvim_list_wins()'),windows,'no leaked modal windows after cancellation')
