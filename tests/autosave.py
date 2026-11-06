@@ -26,7 +26,7 @@ def equal(actual, expected, label):
 
 
 class Editor:
-    def __init__(self, project, settings, disabled=False):
+    def __init__(self, project, settings, disabled=False, disable_lsp=False):
         self.settings_path = settings
         self.socket = STATE / f'auto-{os.getpid()}-{time.monotonic_ns() % 10000}.sock'
         self.env = dict(os.environ, TERM='xterm-256color', JETVIM_DISABLE_VCS='1',
@@ -37,8 +37,11 @@ class Editor:
         self.master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 35, 140, 0, 0))
         self.stop, self.output = threading.Event(), bytearray()
-        self.process = subprocess.Popen([str(ROOT / 'jetvim'), str(project), 'main.lua', '--listen', str(self.socket)],
-                                        cwd=ROOT, env=self.env, stdin=slave, stdout=slave, stderr=slave)
+        command = [str(ROOT / 'jetvim'), str(project), 'main.lua', '--listen', str(self.socket)]
+        if disable_lsp:
+            # Hook-only fixtures must not launch unrelated installed JS/TS servers.
+            command.extend(['--cmd', 'lua vim.lsp.enable=function() end'])
+        self.process = subprocess.Popen(command, cwd=ROOT, env=self.env, stdin=slave, stdout=slave, stderr=slave)
         os.close(slave)
         self.reader = threading.Thread(target=self.drain, daemon=True)
         self.reader.start()

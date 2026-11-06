@@ -33,15 +33,17 @@ All development changes and test fixtures stay inside this checkout.
 | Save hooks, formatters and ESLint diagnostics bridge | hooks_bridge agent | Independently validated: 34 async hook/API checks; committed `540ff33` | Safe argv commands; regex file matching; stale-result protection; formatter preserves edits; line diagnostics reach editor and overview |
 | Native GitToolBox-style gray Git blame annotations | hooks_bridge agent | Independently validated: 10 real Git + 4 insert-mode PTY checks | Read-only cached blame; current-line/all modes; no emails by default; independently validated real Git fixture |
 | Inline regex search on Command-F | public_ci agent | Committed/pushed `a8fb834`; 31 checks on exact staged snapshot | Top editor search bar; hello and /hello/i patterns; next/previous matches; invalid regex handled inline |
-| Find in Files from focused sidebar using Command-Shift-F | public_ci agent | Committed/pushed `a8fb834`; native/relay tests passed | Native and relay shortcuts immediately open project search with focused input; no sidebar search swallowing |
+| Folder-scoped Find in Files modal on Command-Shift-F | public_ci agent | Committed/pushed `e5ae01f`; 46 modal + 31 search checks | Native and relay shortcuts open a focused floating search modal; selected folder scopes results; async cancellation and safe paths |
 | One-command macOS/Linux installation | installer agent | Committed/pushed `c54b122`; 9 offline tests, real Git update smoke, all 4 macOS ARM assets verified | Clone under ~/.jetvim/code; preserve user settings; verified dependencies; isolated install/update tests; honest terminal limitations |
-| Short README and funny logo | public_ci agent | Validated; lead visually inspected rendered SVG | Exact introduction: if jetbrains and vim had a baby!; one install command; local original logo |
+| Short README and combined IDE/Vim logo | public_ci agent | Committed/pushed `d0372f8`; lead inspected rendered SVG | Exact introduction: Imagine if JetBrains and Vim had a baby!; one install command; local original logo |
 | GitHub Actions tests and packages | public_ci agent | Local test groups pass; workflow/action pins reviewed; hosted run pending | macOS/Linux matrix; pinned actions; tests and privacy audit; no private runtime artifacts |
 | Public source and history privacy review | Lead + public_ci agent | Complete: all 7 historical commits sanitized and main replaced with approved force-with-lease; source/history scans pass | No confidential data; no personal machine paths; exclude caches/settings; no license per user request |
 | Option-Delete deletes previous word in embedded terminal | public_ci agent | Independently validated: 27 native/relay byte + real Bash checks; committed `540ff33` | Native127/8 CSI-u, legacy Escape-Delete and relay each send one Ctrl-W; physical Warp right-Option still requires live user verification |
-| Reload externally changed files, including git restore | disk_sync agent | In progress | Clean named buffers reload automatically; preserve views and unsaved edits; refresh Git indicators; handle atomic replacements/deletion/recreation |
-| Short workspace-aware formatter/linter hooks | hooks_bridge + project_hooks agents | In progress | Native local-tool/config discovery; short user/project Lua settings; preserve argv/cwd/ESLint diagnostics; no dependency downloads |
-| Configure an existing project with its installed formatter/linter | project_hooks agent | In progress; simplifying settings | Modify only explicitly authorized project settings; use installed tools and correct workspace configurations; validate read-only |
+| Reload externally changed files, including git restore | disk_sync agent | Committed/pushed `b0b2c1a`; 57 checks including real Git restore | Clean named buffers reload automatically; preserve views and unsaved edits; refresh Git indicators; handle atomic replacements/deletion/recreation |
+| Short workspace-aware formatter/linter hooks | hooks_bridge + project_hooks agents | Validated: 49 workspace + 21 actual autosave pipeline checks | Native local-tool/config discovery; short user/project Lua settings; preserve argv/cwd/ESLint diagnostics; no dependency downloads |
+| Configure an existing project with its installed formatter/linter | project_hooks agent | Delivered: short JS/TS hooks follow declared Oxfmt/Prettier, then ESLint | Modify only explicitly authorized project settings; use installed tools and correct workspace configurations; validate read-only |
+| Create files/folders using Command-N in the tree | public_ci agent | Committed/pushed `ebfb767`; 37 creation checks, 88 bridge shortcuts validated | Native/relay prompt, selected directory, exclusive file creation, nested folders, cancel and path guards |
+| Respect the declared project formatter on save | hooks_bridge + project_hooks agents | Validated: affected files choose Oxfmt; packages declaring Prettier keep it | Inspect scripts/configs without running scripts; local binaries only; one saved file; ambiguity reported |
 | Commit/push completed tasks after independent validation | Lead | Active policy; search, gutter, installer and editor bundle committed/pushed | Review code and exact staged functionality, run relevant tests, commit and push without agent Git access |
 | Initialize Git, validate delegated changes, then commit | Lead | Complete: implementation committed as `c4db90e` after independent validation | Independently inspect diffs and run required tests before committing |
 | Support additional terminals over time | Future terminal adapters | Backlog | Shared actions; terminal-specific forwarding and focus validation |
@@ -103,3 +105,20 @@ Current validation milestone (`540ff33`):
   operating-system settings were changed during development.
 
 Privacy cleanup completed with explicit user approval: sanitized `main` was pushed using a lease against the reviewed prior tip. All seven rewritten commits passed source-pattern scans and use public noreply attribution. The product code at the reviewed tip is unchanged. Original review artifacts remain local under ignored runtime storage.
+
+Latest task validation:
+
+- `b0b2c1a`: all core checks and the real Git group passed against an isolated
+  staged snapshot, including disk reload/restore and formatter/linter pipelines.
+  The validation copy was shortened after hitting the macOS socket pathname limit.
+- `e5ae01f`: 46 project-search modal checks and the 31-check in-file search suite
+  passed; the lead inspected the actual floating-window grid rendering.
+- Project formatter selection passed 49 checks. Actual autosave → formatter →
+  ESLint passed 21 PTY checks; the shared autosave suite still passes 33.
+- Read-only validation of the separately authorized project confirmed the two
+  reported source files select Oxfmt and its real configuration; synthetic stdin
+  formatting left those files unchanged. Existing explicit Prettier workspaces
+  retain their formatter. Ambiguous declarations produce a diagnostic notice.
+- Hook-only fixtures exclude unrelated language servers and capture failure
+  state without increasing their deadlines. Private project config and audit
+  artifacts are not included in this repository or release archive.

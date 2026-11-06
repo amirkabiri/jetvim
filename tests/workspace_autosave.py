@@ -41,7 +41,21 @@ else:
 }
 ''')
     config()
-    editor=Editor(project,preferences)
+    editor=Editor(project,preferences,disable_lsp=True)
+    original_wait=editor.wait
+    def diagnostic_wait(code, seconds=5):
+        try:
+            return original_wait(code, seconds)
+        except Exception as failure:
+            metadata={'expression':code,'jobs':(project/'jobs.log').read_text() if (project/'jobs.log').exists() else None,
+                      'disk':source.read_text() if source.exists() else None,'process_exit':editor.process.poll()}
+            try:
+                metadata['editor']=editor.lua('local b=vim.api.nvim_get_current_buf(); local h=require("jetvim.hooks").states[b]; return {mode=vim.api.nvim_get_mode(),hook=h and {index=h.index,tick=h.tick,pending=h.pending,epoch=h.epoch,path=h.path,job=h.job and {pid=h.job.pid}},tick=vim.api.nvim_buf_get_changedtick(b),modified=vim.bo.modified,busy=vim.b.jetvim_hook_running,buffer=vim.api.nvim_buf_get_lines(b,0,-1,false),error=vim.v.errmsg,autosave=require("jetvim.autosave").states[b] and {error=require("jetvim.autosave").states[b].error,expected=require("jetvim.autosave").states[b].expected},disk=require("jetvim.disk").states[b],messages=vim.api.nvim_exec2("messages",{output=true}).output}')
+            except Exception as capture_failure:
+                metadata['capture_error']=str(capture_failure)
+            (STATE/'workspace-autosave-failure.json').write_text(json.dumps(metadata,indent=2))
+            raise AssertionError(str(failure)+'; state='+json.dumps(metadata)) from failure
+    editor.wait=diagnostic_wait
     try:
         editor.open(source)
         editor.raw('x')
@@ -93,7 +107,7 @@ else:
     preferences.write_text(preferences.read_text().replace('delay_ms=1000','delay_ms=100'))
     formatter=binaries/'prettier'
     formatter.write_text(tool.replace("path=pathlib.Path(file);", "time.sleep(.4); path=pathlib.Path(file);"))
-    editor=Editor(project,preferences)
+    editor=Editor(project,preferences,disable_lsp=True)
     try:
         editor.open(source);editor.raw('x')
         editor.wait('return vim.fn.filereadable(vim.uv.cwd().."/jobs.log")==1',seconds=3)

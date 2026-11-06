@@ -14,7 +14,7 @@ return {
         name = 'format',
         pattern = [[\.(js|jsx|ts|tsx)$]],
         workspace = true,
-        command = { 'prettier', '--write', '{file}' },
+        command = { 'project-formatter', '--write', '{file}' },
       },
       {
         name = 'eslint',
@@ -41,7 +41,13 @@ The timeout defaults to 10 seconds (maximum 120 seconds).
 `workspace = true` runs from the closest ancestor `package.json` directory,
 bounded by the selected project. It uses the nearest installed
 `node_modules/.bin` tool, then the optional `hooks.tool_paths` directories. It
-never downloads tools or falls back to a globally installed executable. A
+never downloads tools or falls back to a globally installed executable. `project-formatter`
+follows the closest package's declared Prettier or Oxfmt formatter. It inspects
+`format`/`lint:format` scripts and local package-script aliases without running
+them. If there is no declaration, it checks the nearest formatter configuration,
+then ancestor package scripts. Conflicting declarations/configurations warn
+instead of guessing. Only the saved file is formatted; script globs and commands
+are never executed. Use `prettier` or `oxfmt` directly to select one explicitly. A
 project `tool_paths` list replaces the user list; `{}` clears inherited paths.
 
 Workspace ESLint uses the nearest `eslint.config.js/mjs/cjs`, legacy

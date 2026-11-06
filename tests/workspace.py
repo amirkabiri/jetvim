@@ -21,15 +21,16 @@ with tempfile.TemporaryDirectory(prefix="workspace ' ", dir=STATE) as directory:
     tool = '''#!/usr/bin/env python3
 import json,os,pathlib,sys
 pathlib.Path(os.environ['JETVIM_WORKSPACE_TESTLOG']).write_text(json.dumps({'argv':sys.argv,'cwd':os.getcwd(),'flat':os.getenv('ESLINT_USE_FLAT_CONFIG')}))
-if pathlib.Path(sys.argv[0]).name=='prettier':
+if pathlib.Path(sys.argv[0]).name in ('prettier','oxfmt'):
     pathlib.Path(sys.argv[-1]).write_text('formatted\\n')
+    pathlib.Path(os.environ['JETVIM_WORKSPACE_TESTLOG']+'.formatter').write_text(pathlib.Path(sys.argv[0]).name)
 else:
     print(json.dumps([{'filePath':next(arg for arg in sys.argv[1:] if arg.endswith(' file.js')),'messages':[{'line':1,'column':1,'severity':2,'message':'workspace lint'}]}]))
     sys.exit(1)
 '''
     for directory in (fixture/'node_modules/.bin', package/'node_modules/.bin', fixture/'packages/tooling/.bin'):
         directory.mkdir(parents=True)
-        for command in ('eslint','prettier'):
+        for command in ('eslint','prettier','oxfmt'):
             binary=directory/command
             binary.write_text(tool)
             binary.chmod(0o755)
@@ -88,19 +89,78 @@ check(plan.argv[4]=='--config' and plan.argv[6]=='--' and plan.argv[7]==file,'co
 local original={'prettier','--write',file}
 resolve(root,file,original,{'packages/tooling/.bin'})
 check(original[1]=='prettier' and #original==3,'caller argv unchanged')
+-- Project formatter selection inspects scripts/configs but never executes
+-- script aliases, scope globs or package-manager commands.
+local function package(path,value) write(path..'/package.json',vim.json.encode(value)) end
+local function project_formatter() return run('project-formatter',{'--write',file},{'packages/tooling/.bin'}) end
+package(root,{scripts={format='pnpm run fmt',fmt='oxfmt --write .'}})
+package(pkg,{scripts={format='prettier --write "src/**/*.js"'}})
+plan=project_formatter()
+check(plan.formatter=='prettier','closest package explicit formatter wins over parent Oxfmt')
+check(#plan.argv==3 and plan.argv[2]=='--write' and plan.argv[3]==file,'script globs never enter single-file formatter argv')
+check(plan.argv[1]==root..'/packages/tooling/.bin/prettier','selected formatter uses installed tool fallback')
+package(pkg,{scripts={format='pnpm run fmt',fmt='oxfmt --write "src/**/*"'}})
+plan=project_formatter()
+check(plan.formatter=='oxfmt' and plan.argv[1]==pkg..'/node_modules/.bin/oxfmt','pnpm alias selects local Oxfmt')
+package(pkg,{scripts={format='npm run fmt',fmt='npx --no-install prettier --write .'}})
+check(project_formatter().formatter=='prettier','npm alias and npx declaration select installed Prettier only')
+package(pkg,{scripts={['lint:format']='pnpm exec oxfmt .'}})
+check(project_formatter().formatter=='oxfmt','lint:format and pnpm exec recognized')
+package(pkg,{scripts={format='pnpm fmt',fmt='npm run format'}})
+missing,err=project_formatter()
+check(not missing and err:find('Cycle',1,true),'alias cycles report instead of guessing')
+package(pkg,{scripts={format='oxfmt . && prettier .'}})
+missing,err=project_formatter()
+check(not missing and err:find('Ambiguous',1,true),'mixed formatter scripts report ambiguity')
+package(pkg,{scripts={format='echo prettier'}})
+check(project_formatter().formatter=='oxfmt','formatter mentioned as an argument is not a declaration')
+package(pkg,{})
+write(pkg..'/.prettierrc.json','{}')
+check(project_formatter().formatter=='prettier','nearest config beats parent script when package has no declaration')
+vim.uv.fs_unlink(pkg..'/.prettierrc.json')
+package(pkg,{prettier='@example/style/prettier'})
+check(project_formatter().formatter=='prettier','package prettier field recognized')
+package(pkg,{})
+write(pkg..'/.oxfmtrc.json','{}')
+check(project_formatter().formatter=='oxfmt','Oxfmt config fallback recognized')
+write(pkg..'/.prettierrc','{}')
+missing,err=project_formatter()
+check(not missing and err:find('Ambiguous',1,true),'both config types report ambiguity')
+vim.uv.fs_unlink(pkg..'/.prettierrc');vim.uv.fs_unlink(pkg..'/.oxfmtrc.json')
+check(project_formatter().formatter=='oxfmt','ancestor/root script fallback follows project formatter')
+package(pkg,{scripts={format='prettier --write .'}})
+missing,err=run('project-formatter',{'--write',file},{})
+check(not missing and err:find('not installed',1,true),'chosen missing formatter does not fall back to another formatter')
+package(pkg,{});package(root,{})
+missing,err=project_formatter()
+check(not missing and err:find('No project formatter',1,true),'unconfigured project reports rather than choosing installed tools')
 -- Real hook processes prove cwd/env/argv survive the adapter and ESLint code1.
+package(pkg,{scripts={format='oxfmt --write src'}})
 require('jetvim.project').setup(root)
 vim.cmd.edit(vim.fn.fnameescape(file))
 local buf=vim.api.nvim_get_current_buf()
 local configured={tool_paths={'packages/tooling/.bin'},after_save={
-  {name='format',workspace=true,pattern=[[\.js$]],command={'prettier','--write','{file}'}},
+  {name='format',workspace=true,pattern=[[\.js$]],command={'project-formatter','--write','{file}'}},
   {name='lint',workspace=true,pattern=[[\.js$]],command={'eslint','--format','json','{file}'},diagnostics='eslint'},
 }}
 require('jetvim.settings').get=function()return {autosave={enabled=false},hooks=configured}end
 local hooks=require('jetvim.hooks')
+local jobs, system = {}, vim.system
+vim.system=function(argv,options,callback)
+  if type(argv[1])~='string' or argv[1]:sub(1,#root+1)~=root..'/' then return system(argv,options,callback) end
+  local entry={argv=vim.deepcopy(argv),cwd=options.cwd};jobs[#jobs+1]=entry
+  return system(argv,options,function(result)
+    entry.result={code=result.code,signal=result.signal,stdout=(result.stdout or ''):sub(1,2000),stderr=(result.stderr or ''):sub(1,2000)}
+    if callback then callback(result) end
+  end)
+end
 hooks.run(buf)
-check(vim.wait(5000,function()return hooks.states[buf]==nil end,10),'workspace hooks finished')
+local finished=vim.wait(5000,function()return hooks.states[buf]==nil end,10)
+check(finished,'workspace hooks finished: '..vim.inspect({state=hooks.states[buf],jobs=jobs,
+  mode=vim.api.nvim_get_mode(),error=vim.v.errmsg,modified=vim.bo[buf].modified,
+  tick=vim.api.nvim_buf_get_changedtick(buf),disk=require('jetvim.disk').states[buf]}))
 check(vim.api.nvim_buf_get_lines(buf,0,1,false)[1]=='formatted','workspace formatter reload')
+check(vim.fn.readfile(vim.env.JETVIM_WORKSPACE_TESTLOG..'.formatter')[1]=='oxfmt','virtual hook executes chosen Oxfmt binary')
 local metadata=vim.json.decode(table.concat(vim.fn.readfile(vim.env.JETVIM_WORKSPACE_TESTLOG),'\n'))
 check(metadata.cwd==pkg and metadata.flat=='true','actual process cwd and ESLint mode')
 check(metadata.argv[#metadata.argv-2]==file,'actual argv preserves placeholder filename')
@@ -125,7 +185,7 @@ print('workspace: '..count..' checks passed')
 '''
     (fixture/'test.lua').write_text(script)
     env=dict(os.environ,JETVIM_DISABLE_VCS='1',JETVIM_DISABLE_AUTOSAVE='1',JETVIM_WORKSPACE_FIXTURE=str(fixture),JETVIM_WORKSPACE_TESTLOG=str(fixture/'job.json'))
-    result=subprocess.run([str(ROOT/'jetvim'),'--headless','-c','lua dofile(vim.env.JETVIM_WORKSPACE_FIXTURE.."/test.lua")','+qa!'],cwd=ROOT,env=env,capture_output=True,text=True,timeout=30)
+    result=subprocess.run([str(ROOT/'jetvim'),'--headless','--cmd','lua vim.lsp.enable=function() end','-c','lua dofile(vim.env.JETVIM_WORKSPACE_FIXTURE.."/test.lua")','+qa!'],cwd=ROOT,env=env,capture_output=True,text=True,timeout=30)
     output=result.stdout+result.stderr
     print(output,end='')
     raise SystemExit(result.returncode if 'checks passed' in output else 1)
