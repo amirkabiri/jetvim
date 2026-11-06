@@ -50,7 +50,9 @@ function M.setup(root)
   end })
   vim.api.nvim_create_autocmd('BufWritePre', { group = group, callback = function(event)
     local project = require('jetvim.project')
-    if not project.resolve(event.file) and not project.resolve_tool(event.file) then
+    local settings = package.loaded['jetvim.settings']
+    if not project.resolve(event.file) and not project.resolve_tool(event.file)
+      and not (settings and settings.allow_path(event.file)) then
       error('Jetvim cannot write outside the selected project or its own configuration directory')
     end
   end })
@@ -92,5 +94,10 @@ function M.setup(root)
   end })
   require('jetvim.vcs').setup()
   require('jetvim.gutter').setup()
+  require('jetvim.settings').setup(root)
+  require('jetvim.autosave').setup()
+  require('jetvim.hooks').setup()
+  require('jetvim.blame').setup()
+  require('jetvim.overview').setup()
 end
 return M

@@ -616,5 +616,33 @@
     "key": "<D-9>",
     "terminal": "super+9",
     "fallback": "<leader>9"
+  },
+  {
+    "id": "resize_left",
+    "label": "Stretch Pane Left",
+    "shortcut": "⌃⌥←",
+    "key": "<C-M-Left>",
+    "terminal": "ctrl+alt+left"
+  },
+  {
+    "id": "resize_right",
+    "label": "Stretch Pane Right",
+    "shortcut": "⌃⌥→",
+    "key": "<C-M-Right>",
+    "terminal": "ctrl+alt+right"
+  },
+  {
+    "id": "resize_up",
+    "label": "Stretch Pane Up",
+    "shortcut": "⌃⌥↑",
+    "key": "<C-M-Up>",
+    "terminal": "ctrl+alt+up"
+  },
+  {
+    "id": "resize_down",
+    "label": "Stretch Pane Down",
+    "shortcut": "⌃⌥↓",
+    "key": "<C-M-Down>",
+    "terminal": "ctrl+alt+down"
   }
 ]

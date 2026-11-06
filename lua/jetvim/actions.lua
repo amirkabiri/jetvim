@@ -147,7 +147,57 @@ function M.completion()
   end)
 end
 function M.save() vim.cmd.wall() end
-function M.close() vim.cmd('confirm bdelete') end
+function M.close()
+  local tree = require('jetvim.tree')
+  local origin = vim.api.nvim_get_current_win()
+  local editor = tree.is_editor_window(origin) and origin or tree.find_editor()
+  if not editor then return end
+  local buf = vim.api.nvim_win_get_buf(editor)
+  -- Command-W closes editor tabs, never the tree, terminal or Git tool buffers.
+  -- The empty editor slot is unlisted and repeated closes are a no-op.
+  if vim.bo[buf].buftype ~= '' or not vim.bo[buf].buflisted then return end
+  local closing = vim.b[buf].jetvim_closing
+  vim.b[buf].jetvim_closing = true
+  local ok, err = pcall(function()
+    if vim.bo[buf].modified then
+      local name = vim.api.nvim_buf_get_name(buf)
+      local choice = vim.fn.confirm('Save changes to ' .. (name ~= '' and vim.fn.fnamemodify(name, ':t') or 'Untitled') .. '?',
+        '&Save\n&Discard\n&Cancel', 3)
+      if choice ~= 1 and choice ~= 2 then return end
+      if choice == 1 then
+        -- We already asked the user. A failed write must return an error rather
+        -- than open a second implicit :write confirmation and continue closing.
+        local confirm = vim.o.confirm
+        vim.o.confirm = false
+        local ok, err = pcall(vim.api.nvim_buf_call, buf, function() vim.cmd('silent write') end)
+        vim.o.confirm = confirm
+        if not ok then vim.notify('Could not save file: ' .. tostring(err), vim.log.levels.ERROR); return end
+      end
+    end
+    tree.remember_width()
+    local replacement
+    for _, candidate in ipairs(vim.api.nvim_list_bufs()) do
+      if candidate ~= buf and vim.bo[candidate].buflisted and vim.bo[candidate].buftype == '' then
+        replacement = candidate
+        if candidate > buf then break end
+      end
+    end
+    replacement = replacement or tree.placeholder()
+    -- Swap the buffer in every affected editor window before deleting it. Native
+    -- :bdelete may otherwise close those windows and expand the surviving tree.
+    for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+      vim.api.nvim_win_set_buf(win, replacement)
+    end
+    if vim.api.nvim_buf_is_valid(buf) then vim.api.nvim_buf_delete(buf, { force = true }) end
+    if vim.api.nvim_win_is_valid(origin) then vim.api.nvim_set_current_win(origin) end
+  end)
+  if vim.api.nvim_buf_is_valid(buf) then
+    vim.b[buf].jetvim_closing = closing
+    local autosave = package.loaded['jetvim.autosave']
+    if vim.bo[buf].modified and autosave and autosave.schedule then autosave.schedule(buf) end
+  end
+  if not ok then error(err, 0) end
+end
 function M.undo() vim.cmd.undo() end
 function M.redo() vim.cmd.redo() end
 function M.back() normal('<C-o>') end
@@ -265,7 +315,7 @@ function M.paste_history()
   end
   ui.pick('Paste from History', items, function(item) edit.paste(item.entry.text, item.entry.kind) end)
 end
-function M.tree() require('jetvim.tree').focus() end
+function M.tree() require('jetvim.tree').toggle() end
 function M.git_changes() require('jetvim.git').toggle() end
 function M.reveal() require('jetvim.tree').reveal() end
 function M.hide_tools() require('jetvim.tree').hide() end
@@ -275,14 +325,58 @@ function M.editor()
   else tree.editor(); vim.cmd.startinsert() end
 end
 function M.terminal()
-  if M.term_win and vim.api.nvim_win_is_valid(M.term_win) then vim.api.nvim_win_close(M.term_win, true); return end
-  vim.cmd('botright 12split')
+  local function remember()
+    if M.term_restoring or not M.term_win or not vim.api.nvim_win_is_valid(M.term_win) then return end
+    if vim.api.nvim_win_get_buf(M.term_win) ~= M.term_buf then return end
+    -- Only capture a real split, never the survivor after its editor closed.
+    local position = vim.api.nvim_win_get_position(M.term_win)
+    if position[1] > 1 then
+      require('jetvim.layout').capture()
+      M.term_height = require('jetvim.layout').get('terminal_height', M.term_height or 12)
+    end
+  end
+  if M.term_win and vim.api.nvim_win_is_valid(M.term_win) then
+    remember()
+    require('jetvim.layout').begin()
+    require('jetvim.layout').detach('terminal_height')
+    vim.api.nvim_win_close(M.term_win, true)
+    M.term_win = nil
+    require('jetvim.layout').finish()
+    return
+  end
+  M.term_restoring = true
+  require('jetvim.layout').begin()
+  local preferred = require('jetvim.layout').get('terminal_height', M.term_height or 12)
+  local height = math.max(1, math.min(preferred, math.max(1, vim.o.lines - vim.o.cmdheight - 6)))
+  vim.cmd('botright ' .. height .. 'split')
   M.term_win = vim.api.nvim_get_current_win()
-  if M.term_buf and vim.api.nvim_buf_is_valid(M.term_buf) then vim.api.nvim_win_set_buf(0, M.term_buf)
+  local alive = M.term_buf and vim.api.nvim_buf_is_valid(M.term_buf)
+    and vim.bo[M.term_buf].buftype == 'terminal'
+    and vim.fn.jobwait({ vim.b[M.term_buf].terminal_job_id or -1 }, 0)[1] == -1
+  if alive then vim.api.nvim_win_set_buf(0, M.term_buf)
   else vim.cmd.enew(); vim.cmd.terminal(); M.term_buf = vim.api.nvim_get_current_buf() end
+  vim.wo.winfixheight = true
+  local group = vim.api.nvim_create_augroup('JetvimTerminalSize', { clear = true })
+  vim.api.nvim_create_autocmd({ 'WinResized', 'WinLeave', 'BufWinLeave', 'TermClose' }, { group = group, callback = function(event)
+    remember()
+    if event.event == 'TermClose' and event.buf == M.term_buf and vim.api.nvim_get_current_buf() == M.term_buf then
+      -- Route the next shortcut through normal mappings instead of the exited
+      -- terminal's "press any key" handler consuming it.
+      vim.cmd.stopinsert()
+    end
+  end })
+  M.term_restoring = false
+  require('jetvim.layout').attach('terminal_height', M.term_win)
+  require('jetvim.layout').finish()
+  -- Retain the requested height if the host terminal temporarily clamps it.
+  M.term_height = preferred
   vim.cmd.startinsert()
 end
 function M.help() project.open_tool('docs/shortcuts.md') end
-function M.settings() project.open_tool('config/lsp.lua') end
+function M.settings() require('jetvim.settings').open() end
 function M.vim_mode() vim.cmd.stopinsert() end
+function M.resize_left() require('jetvim.resize').move('left') end
+function M.resize_right() require('jetvim.resize').move('right') end
+function M.resize_up() require('jetvim.resize').move('up') end
+function M.resize_down() require('jetvim.resize').move('down') end
 return M

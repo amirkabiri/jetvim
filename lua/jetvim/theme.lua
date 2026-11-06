@@ -29,6 +29,11 @@ function M.setup(options)
   require('jetvim.icons').setup(options)
   local c = palette
   local highlights = {
+    JetvimOverviewBackground = { fg = '#1e1f22', bg = '#1e1f22' },
+    JetvimOverviewError = { fg = c.red, bg = c.editor },
+    JetvimOverviewWarning = { fg = '#d9bb76', bg = c.editor },
+    JetvimOverviewInfo = { fg = c.blue, bg = c.editor },
+    JetvimOverviewHint = { fg = c.muted, bg = c.editor },
     Normal = { fg = c.text, bg = c.editor }, NormalNC = { fg = c.text, bg = c.editor },
     EndOfBuffer = { fg = c.editor, bg = c.editor }, SignColumn = { bg = c.editor },
     ColorColumn = { bg = '#26282e' }, CursorLine = { bg = '#26282e' },

@@ -1,6 +1,26 @@
 local M = { rows = {}, generation = 0, preview_generation = 0 }
 local highlight_ns = vim.api.nvim_create_namespace('JetvimGitHighlights')
 local function valid(win) return win and vim.api.nvim_win_is_valid(win) end
+function M.remember_size()
+  -- Closing one vertical pane expands the survivor. Only a complete, identified
+  -- pair represents the user's chosen list width and bottom-panel height.
+  if M.restoring or M.tearing_down or not valid(M.list_win) or not valid(M.diff_win) then return end
+  if vim.api.nvim_win_get_buf(M.list_win) ~= M.list_buf or vim.api.nvim_win_get_buf(M.diff_win) ~= M.diff_buf then return end
+  if vim.api.nvim_win_get_tabpage(M.list_win) ~= vim.api.nvim_win_get_tabpage(M.diff_win) then return end
+  local layout = require('jetvim.layout')
+  layout.capture()
+  M.size = { height = layout.get('git_height', 14), list_width = layout.get('git_list_width', math.min(42, math.floor(vim.o.columns * 0.35))) }
+end
+local function restore_size()
+  local layout = require('jetvim.layout')
+  local preferred = { height = layout.get('git_height', M.size and M.size.height or 14), list_width = layout.get('git_list_width', M.size and M.size.list_width or math.min(42, math.floor(vim.o.columns * 0.35))) }
+  local height = math.max(1, math.min(preferred.height, math.max(1, vim.o.lines - vim.o.cmdheight - 6)))
+  -- Leave room for the preview and the shared separator in narrow terminals.
+  local minimum = math.max(1, math.min(10, math.floor((vim.o.columns - 1) / 2)))
+  local width = math.max(minimum, math.min(preferred.list_width, math.max(minimum, vim.o.columns - minimum - 1)))
+  vim.api.nvim_win_set_height(M.list_win, height)
+  vim.api.nvim_win_set_width(M.list_win, width)
+end
 local function command(cwd, args, callback)
   local cmd = { 'git', '--no-pager', '--no-optional-locks', '--literal-pathspecs',
     '-c', 'color.ui=false', '-c', 'core.fsmonitor=false', '-C', cwd }
@@ -168,40 +188,53 @@ function M.editor()
   if vim.bo.modifiable then vim.cmd.startinsert() end
 end
 function M.hide()
+  M.remember_size()
+  require('jetvim.layout').begin()
+  require('jetvim.layout').detach('git_height')
+  require('jetvim.layout').detach('git_list_width')
+  M.tearing_down = true
   M.generation, M.preview_generation = M.generation + 1, M.preview_generation + 1
   M.editor()
   for _, win in ipairs({ M.diff_win, M.list_win }) do
     if valid(win) and #vim.api.nvim_tabpage_list_wins(0) > 1 then vim.api.nvim_win_close(win, true) end
   end
+  M.tearing_down = false
+  require('jetvim.layout').finish()
 end
 function M.toggle()
   vim.cmd.stopinsert()
   if valid(M.list_win) and valid(M.diff_win) then
     if vim.api.nvim_get_current_win() == M.list_win or vim.api.nvim_get_current_win() == M.diff_win then M.hide()
-    else vim.api.nvim_set_current_win(M.list_win); M.refresh() end
+    else vim.api.nvim_set_current_win(M.list_win); require('jetvim.layout').rebase(); M.refresh() end
     return
   end
   -- Recover if a pane was closed manually, without leaving an orphaned preview.
+  require('jetvim.layout').begin()
+  M.tearing_down = true
   for _, win in pairs({ M.diff_win, M.list_win }) do
     if valid(win) and #vim.api.nvim_tabpage_list_wins(0) > 1 then vim.api.nvim_win_close(win, true) end
   end
+  M.tearing_down = false
   if vim.bo.buftype == '' then M.editor_win = vim.api.nvim_get_current_win()
   else M.editor_win = require('jetvim.tree').editor_win end
   M.list_buf, M.diff_buf = vim.api.nvim_create_buf(false, true), vim.api.nvim_create_buf(false, true)
   for _, buf in ipairs({ M.list_buf, M.diff_buf }) do vim.bo[buf].bufhidden = 'wipe'; vim.bo[buf].swapfile = false end
   vim.bo[M.list_buf].filetype, vim.bo[M.diff_buf].filetype = 'jetvim-git', 'diff'
-  vim.cmd('botright 14split')
+  M.restoring = true
+  vim.cmd('botright split')
   M.list_win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(M.list_win, M.list_buf)
   vim.cmd('rightbelow vsplit')
   M.diff_win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(M.diff_win, M.diff_buf)
-  vim.api.nvim_win_set_width(M.list_win, math.min(42, math.floor(vim.o.columns * 0.35)))
+  restore_size()
   for _, win in ipairs({ M.list_win, M.diff_win }) do
     vim.wo[win].number = false; vim.wo[win].relativenumber = false
     vim.wo[win].signcolumn = 'no'; vim.wo[win].wrap = false
+    vim.wo[win].winfixheight = true
     vim.wo[win].winhighlight = 'Normal:JetvimToolNormal,NormalNC:JetvimToolNormal,CursorLine:JetvimToolCursorLine,WinSeparator:JetvimSeparator'
   end
+  vim.wo[M.list_win].winfixwidth = true
   vim.wo[M.list_win].cursorline = true
   local function map(buf, key, fn) vim.keymap.set('n', key, fn, { buffer = buf, silent = true, nowait = true }) end
   for _, buf in ipairs({ M.list_buf, M.diff_buf }) do
@@ -214,9 +247,15 @@ function M.toggle()
   map(M.list_buf, '<Tab>', function() vim.api.nvim_set_current_win(M.diff_win) end)
   map(M.diff_buf, '<S-Tab>', function() vim.api.nvim_set_current_win(M.list_win) end)
   vim.api.nvim_create_autocmd('CursorMoved', { buffer = M.list_buf, callback = M.preview })
+  vim.api.nvim_create_autocmd('WinResized', { group = vim.api.nvim_create_augroup('JetvimGitSize', { clear = true }), callback = M.remember_size })
   vim.api.nvim_create_autocmd('BufWritePost', { group = vim.api.nvim_create_augroup('JetvimGitRefresh', { clear = true }),
     callback = function() if valid(M.list_win) then M.refresh() end end })
   vim.api.nvim_set_current_win(M.list_win)
+  M.restoring = false
+  require('jetvim.layout').attach('git_height', M.list_win)
+  require('jetvim.layout').attach('git_list_width', M.list_win)
+  require('jetvim.layout').finish()
+  M.remember_size()
   set_lines(M.diff_buf, { ' Loading Git changes…' })
   M.refresh()
 end

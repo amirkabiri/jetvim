@@ -9,8 +9,16 @@ local ok, err = pcall(function()
   vim.cmd.write()
   require('jetvim.actions').help()
   assert(vim.api.nvim_buf_get_name(0) == vim.env.JETVIM_ROOT .. '/docs/shortcuts.md', 'Help must use installation')
+  local select = vim.ui.select
+  vim.ui.select = function(scopes, options, callback)
+    assert(vim.deep_equal(scopes, { 'User settings', 'Project settings' }), 'Settings must offer both Lua scopes')
+    callback(scopes[1])
+  end
   require('jetvim.actions').settings()
-  assert(vim.api.nvim_buf_get_name(0) == vim.env.JETVIM_ROOT .. '/config/lsp.lua', 'Settings must use installation')
+  vim.ui.select = select
+  assert(vim.api.nvim_buf_get_name(0) == vim.env.JETVIM_HOME .. '/settings.lua', 'User settings must use runtime home')
+  assert(require('jetvim.settings').allow_path(vim.api.nvim_buf_get_name(0)), 'User configuration writes must be allowed')
+  assert(vim.deep_equal(dofile(vim.env.JETVIM_HOME .. '/settings.lua'), dofile(vim.env.JETVIM_ROOT .. '/config/settings.lua')), 'Fresh user settings must copy current defaults')
   require('jetvim.tree').focus()
   local found = false
   for _, entry in pairs(require('jetvim.tree').rows) do

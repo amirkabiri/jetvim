@@ -8,6 +8,7 @@ import pty
 import select
 import shutil
 import struct
+import sys
 import subprocess
 import termios
 import threading
@@ -202,7 +203,7 @@ try:
     time.sleep(0.1)
     check(lua('return vim.v.errmsg') == '', 'no renderer or picker errors')
     print(f'PASS: {checks} appearance checks; real TUI grid capture in .jetvim/appearance-grid.json')
-    if shutil.which('swiftc'):
+    if sys.platform == 'darwin' and shutil.which('swiftc'):
         source, binary = STATE / 'render-appearance.swift', STATE / 'render-appearance'
         source.write_text(RENDERER)
         cache = STATE / 'cache/swift'

@@ -2,11 +2,58 @@ local M = { expanded = {}, rows = {}, query = '', matches = {} }
 local search_ns = vim.api.nvim_create_namespace('JetvimTreeSearch')
 local decoration_ns = vim.api.nvim_create_namespace('JetvimTreeDecorations')
 local function valid(win) return win and vim.api.nvim_win_is_valid(win) end
+local function in_current_tab(win)
+  return valid(win) and vim.api.nvim_win_get_tabpage(win) == vim.api.nvim_get_current_tabpage()
+end
+local function tree_window(win)
+  return in_current_tab(win) and M.buf and vim.api.nvim_buf_is_valid(M.buf)
+    and vim.api.nvim_win_get_buf(win) == M.buf and vim.bo[M.buf].filetype == 'jetvim-tree'
+end
+M.is_tree_window = tree_window
+function M.find_tree()
+  if tree_window(M.win) then return M.win end
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if tree_window(win) then M.win = win; return win end
+  end
+end
+local function editor_buffer(buf)
+  return vim.bo[buf].buftype == '' or vim.b[buf].jetvim_editor_placeholder == true
+end
+function M.is_editor_window(win)
+  return in_current_tab(win) and not tree_window(win) and vim.api.nvim_win_get_config(win).relative == ''
+    and editor_buffer(vim.api.nvim_win_get_buf(win))
+end
+function M.find_editor()
+  if M.is_editor_window(M.editor_win) then return M.editor_win end
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if M.is_editor_window(win) then M.editor_win = win; return win end
+  end
+end
+function M.remember_width()
+  local win = M.find_tree()
+  if win and M.find_editor() then
+    local layout = require('jetvim.layout')
+    layout.capture()
+    M.sidebar_width = layout.get('tree_width', M.sidebar_width or 30)
+  end
+end
+function M.placeholder()
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.b[buf].jetvim_editor_placeholder = true
+  vim.bo[buf].bufhidden = 'wipe'
+  vim.bo[buf].filetype = 'jetvim-empty'
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '', '    No files open', '', '    ⌘⇧O  Go to File', '    ⌘1   Project tree',
+  })
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].modified = false
+  return buf
+end
 local function display_name(name)
   return name:gsub('\r', '␍'):gsub('\n', '↵'):gsub('\t', '⇥')
 end
 function M.window_style(active)
-  if not valid(M.win) then return end
+  if not tree_window(M.win) then return end
   local cursorline = active and 'JetvimTreeCursorLine' or 'JetvimTreeCursorLineInactive'
   vim.wo[M.win].winhighlight = 'Normal:JetvimTreeNormal,NormalNC:JetvimTreeNormal,CursorLine:' .. cursorline
     .. ',EndOfBuffer:JetvimTreeNormal,WinSeparator:JetvimSeparator'
@@ -15,7 +62,7 @@ local function sync_window_style()
   -- Startup creates the sidebar inside VimEnter, where nested WinLeave events
   -- are suppressed. Synchronize after that caller restores editor focus.
   vim.schedule(function()
-    if valid(M.win) then M.window_style(vim.api.nvim_get_current_win() == M.win) end
+    if tree_window(M.win) then M.window_style(vim.api.nvim_get_current_win() == M.win) end
   end)
 end
 function M.update_search(select_match)
@@ -47,7 +94,7 @@ function M.update_search(select_match)
   if M.query ~= '' and #M.matches == 0 then
     vim.api.nvim_buf_set_extmark(M.buf, search_ns, 2, 0, { end_col = #header, hl_group = 'WarningMsg' })
   end
-  if select_match and #M.matches > 0 and valid(M.win) then
+  if select_match and #M.matches > 0 and tree_window(M.win) then
     local current = vim.api.nvim_win_get_cursor(M.win)[1]
     if not vim.tbl_contains(M.matches, current) then vim.api.nvim_win_set_cursor(M.win, { M.matches[1], 0 }) end
   end
@@ -111,17 +158,37 @@ function M.left()
   end
 end
 function M.editor()
-  if valid(M.editor_win) then vim.api.nvim_set_current_win(M.editor_win); return end
-  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    local buf = vim.api.nvim_win_get_buf(win)
-    if vim.bo[buf].buftype == '' then M.editor_win = win; vim.api.nvim_set_current_win(win); return end
+  M.find_tree()
+  local win = M.find_editor()
+  if win then
+    M.remember_width()
+    vim.api.nvim_set_current_win(win)
+    require('jetvim.layout').rebase()
+    return win
   end
+  local sidebar_width = require('jetvim.layout').get('tree_width', M.sidebar_width or 30)
+  require('jetvim.layout').begin()
+  if tree_window(M.win) then vim.api.nvim_set_current_win(M.win) end
   vim.cmd('rightbelow vnew')
   M.editor_win = vim.api.nvim_get_current_win()
+  -- A recovery split made beside the tree must use editor options, not inherit
+  -- the tree's fixed width and panel colors.
+  vim.wo.winfixwidth = false
+  vim.wo.winhighlight = ''
+  vim.wo.number = vim.go.number
+  vim.wo.relativenumber = vim.go.relativenumber
+  vim.wo.signcolumn = vim.go.signcolumn
+  if tree_window(M.win) then
+    vim.api.nvim_win_set_width(M.win, math.min(sidebar_width, math.max(1, vim.o.columns - 12)))
+    require('jetvim.layout').attach('tree_width', M.win)
+  end
+  require('jetvim.layout').finish()
+  M.remember_width()
+  return M.editor_win
 end
 function M.render()
   if not M.buf or not vim.api.nvim_buf_is_valid(M.buf) then return end
-  local selected = valid(M.win) and M.rows[vim.api.nvim_win_get_cursor(M.win)[1]] or nil
+  local selected = tree_window(M.win) and M.rows[vim.api.nvim_win_get_cursor(M.win)[1]] or nil
   local selected_path = selected and selected.path
   local root = require('jetvim.project').root
   if M.expanded[root] == nil then M.expanded[root] = true end
@@ -179,7 +246,7 @@ function M.render()
   for _, mark in ipairs(decorations) do
     vim.api.nvim_buf_set_extmark(M.buf, decoration_ns, mark.row, mark.first, { end_col = mark.last, hl_group = mark.group, priority = 100 })
   end
-  if selected_path and valid(M.win) then
+  if selected_path and tree_window(M.win) then
     for row, entry in pairs(M.rows) do
       if entry.path == selected_path then vim.api.nvim_win_set_cursor(M.win, { row, 0 }); break end
     end
@@ -196,26 +263,44 @@ function M.open_entry()
 end
 function M.hide()
   M.clear_search()
-  if valid(M.win) then
+  if M.find_tree() then
     M.editor()
+    require('jetvim.layout').begin()
+    require('jetvim.layout').detach('tree_width')
     if #vim.api.nvim_tabpage_list_wins(0) > 1 then vim.api.nvim_win_close(M.win, true) end
+    require('jetvim.layout').finish()
+    if vim.bo.buftype == '' and vim.bo.modifiable then vim.cmd.startinsert() end
   end
+end
+function M.toggle()
+  local win = M.find_tree()
+  if win and vim.api.nvim_get_current_win() == win then M.hide()
+  else M.focus() end
 end
 function M.focus()
   vim.cmd.stopinsert()
-  if valid(M.win) then
+  if M.find_tree() then
     vim.api.nvim_set_current_win(M.win)
+    require('jetvim.layout').rebase()
     M.window_style(true)
     sync_window_style()
     require('jetvim.vcs').refresh()
     return
   end
-  if vim.bo.buftype == '' then M.editor_win = vim.api.nvim_get_current_win() end
+  if vim.bo.buftype == '' then M.editor_win = vim.api.nvim_get_current_win()
+  elseif vim.bo.buftype == 'nofile' and vim.bo.filetype == '' and vim.api.nvim_buf_get_name(0) == '' then
+    -- The startup welcome screen occupies the editor slot even before a file
+    -- has been opened. It is never a tool window.
+    vim.b.jetvim_editor_placeholder = true
+    M.editor_win = vim.api.nvim_get_current_win()
+  end
+  require('jetvim.layout').begin()
   M.buf = vim.api.nvim_create_buf(false, true)
   M.query, M.matches = '', {}
   vim.bo[M.buf].bufhidden = 'wipe'
   vim.bo[M.buf].filetype = 'jetvim-tree'
-  vim.cmd('topleft 30vsplit')
+  M.sidebar_width = require('jetvim.layout').get('tree_width', M.sidebar_width or 30)
+  vim.cmd('topleft ' .. math.min(M.sidebar_width, math.max(1, vim.o.columns - 12)) .. 'vsplit')
   M.win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(M.win, M.buf)
   vim.wo.number = false
@@ -263,6 +348,9 @@ function M.focus()
   M.render()
   vim.api.nvim_win_set_cursor(M.win, { 2, 0 })
   sync_window_style()
+  require('jetvim.layout').attach('tree_width', M.win)
+  require('jetvim.layout').finish()
+  M.remember_width()
   require('jetvim.vcs').refresh()
 end
 function M.new_file()
@@ -305,4 +393,5 @@ vim.on_key(function(key, typed)
 end, search_ns)
 vim.api.nvim_create_autocmd('User', { group = vim.api.nvim_create_augroup('JetvimTreeVcs', { clear = true }),
   pattern = 'JetvimVcsChanged', callback = M.render })
+vim.api.nvim_create_autocmd('WinResized', { callback = M.remember_width })
 return M

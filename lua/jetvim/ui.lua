@@ -27,10 +27,11 @@ function M.pick(title, items, accept)
   vim.bo[input].bufhidden = 'wipe'
   vim.bo[results].bufhidden = 'wipe'
   vim.fn.prompt_setprompt(input, '❯ ')
-  local filtered, selected, closed = {}, 1, false
+  local filtered, selected, closed, last_query = {}, 1, false, nil
   local function draw()
     if closed then return end
     local query = (vim.api.nvim_buf_get_lines(input, 0, 1, false)[1] or ''):gsub('^❯ ', '')
+    if query ~= last_query then selected, last_query = 1, query end
     local labels, lookup = {}, {}
     for i, item in ipairs(items) do
       local label = type(item) == 'string' and item or item.label
@@ -67,6 +68,9 @@ function M.pick(title, items, accept)
     if vim.api.nvim_win_is_valid(origin) then vim.api.nvim_set_current_win(origin) end
   end
   local function choose()
+    -- A terminal may deliver pasted text and Enter in one input batch, before
+    -- TextChangedI fires. Resolve against the actual current prompt text.
+    draw()
     local item = filtered[selected]
     close()
     if item then vim.schedule(function() accept(item) end) end

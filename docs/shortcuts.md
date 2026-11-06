@@ -91,6 +91,10 @@ then Space followed by the displayed key. `Space Space` searches files and actio
 | Jetvim Settings | ⌘, | — | `[983119u` |
 | Jetvim Shortcut Guide | ⌘? (Jetvim) | Space ? | `[983120u` |
 | Git Changes | ⌘9 | Space 9 | `[983121u` |
+| Stretch Pane Left | ⌃⌥← | — | `[983122u` |
+| Stretch Pane Right | ⌃⌥→ | — | `[983123u` |
+| Stretch Pane Up | ⌃⌥↑ | — | `[983124u` |
+| Stretch Pane Down | ⌃⌥↓ | — | `[983125u` |
 | Next Editor | ⌘⇧] | Space ] | `[983088u` |
 | Previous Editor | ⌘⇧[ | Space [ | `[983089u` |
 
@@ -104,6 +108,9 @@ Project sidebar: type to search visible entries; arrows move through matches, Ba
 Escape clears the query before returning to the editor. Plain letter keys are search text.
 Left collapses a folder or selects its parent; Right expands it or enters its first child.
 The project root is selectable. Drag the sidebar divider to resize it.
+Ctrl+Option+Arrow resizes the focused pane by moving its shared divider in that direction.
+For a left sidebar, Right grows and Left shrinks; for a bottom pane, Up grows and Down shrinks.
+Resize steps are four columns or two rows; dimensions stop at ten columns or three rows.
 Git Changes (⌘9): arrows select, Enter opens, Tab focuses the diff, R refreshes,
 Escape focuses the editor and Shift-Escape hides the tool window. Diffs are read-only.
 These are implemented bindings, not a claim of complete IntelliJ feature parity.
