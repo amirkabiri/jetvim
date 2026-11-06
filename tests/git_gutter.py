@@ -17,6 +17,15 @@ Editor, git, equal = support['Editor'], support['git'], support['equal']
 STATE = support['STATE']
 support['ENV'].pop('JETVIM_DISABLE_VCS', None)
 support['ENV']['JETVIM_DISABLE_AUTOSAVE'] = '1'
+# Measure the gutter provider independently. Blame legitimately starts Git after
+# text changes, while filename-cache updates can refresh every gutter baseline.
+# Disable those unrelated providers before init installs their jobs/autocmds;
+# keep the real gutter and the all-Git process observer below enabled.
+GUTTER_INIT = (
+    "lua package.preload['jetvim.blame'] = function() return { setup = function() end } end; "
+    "package.preload['jetvim.vcs'] = function() return { setup = function() end, "
+    "refresh = function() end, status = function() end } end"
+)
 
 
 def marks(editor):
@@ -79,8 +88,10 @@ with tempfile.TemporaryDirectory(prefix='git gutter ', dir=STATE) as folder:
     (repo / 'binary.dat').write_bytes(b'a\0changed\n')
     index = (repo / '.git/index').read_bytes()
     baseline = {str(path.relative_to(repo)): path.read_bytes() for path in repo.rglob('*') if path.is_file() and '.git' not in path.parts}
-    editor = Editor(repo, 'changed.lua')
+    editor = Editor(repo, 'changed.lua', pre_init=GUTTER_INIT)
     try:
+        equal(editor.lua('return {vim.fn.exists("#JetvimBlame"),vim.fn.exists("#JetvimVcs"),vim.fn.exists("#JetvimGitGutter")}'),
+              [0, 0, 1], 'only the gutter provider installs Git refreshes in this fixture')
         editor.wait('local s=require("jetvim.gutter").states[vim.api.nvim_get_current_buf()]; return s and not s.pending and not s.job')
         wait_marks(editor, {(2, 'JetvimGutterModified')})
         equal(editor.lua('return vim.wo.signcolumn'), 'yes:3', 'left gutter has three stable sign slots')
@@ -133,8 +144,14 @@ with tempfile.TemporaryDirectory(prefix='git gutter ', dir=STATE) as folder:
                    'vim.system=function(argv,...) if argv[1]=="git" then vim.g.gutter_fixture_calls=vim.g.gutter_fixture_calls+1 end; return _G.gutter_fixture_system(argv,...) end; '
                    'vim.api.nvim_buf_set_lines(0,0,-1,false,{"first","second","third","fourth"}); require("jetvim.gutter").changed(); return true')
         wait_marks(editor, set())
-        editor.lua('vim.api.nvim_buf_set_lines(0,2,2,false,{"unsaved added"}); require("jetvim.gutter").changed(); return true')
+        editor.lua('vim.api.nvim_buf_set_lines(0,2,2,false,{"unsaved added"}); require("jetvim.gutter").changed(); '
+                   'vim.g.gutter_fixture_observed=false; '
+                   'vim.defer_fn(function() vim.g.gutter_fixture_observed=true end,350); return true')
         wait_marks(editor, {(3, 'JetvimGutterAdded')})
+        # Let the editor process both cached redraw and any accidentally queued
+        # baseline-fetch timers before reading the spy. Host scheduling cannot
+        # shorten this observation window.
+        editor.wait('return vim.g.gutter_fixture_observed == true')
         equal(editor.lua('return vim.bo.modified'), True, 'unsaved edits included')
         equal(editor.lua('return vim.g.gutter_fixture_calls'), 0, 'typing does not start Git subprocesses')
         editor.lua('vim.system=_G.gutter_fixture_system; return true')
@@ -147,7 +164,7 @@ with tempfile.TemporaryDirectory(prefix='git gutter ', dir=STATE) as folder:
 with tempfile.TemporaryDirectory(prefix='gutter nonrepo ', dir=STATE) as folder:
     project = Path(folder)
     (project / 'plain.lua').write_text('plain\n')
-    editor = Editor(project, 'plain.lua')
+    editor = Editor(project, 'plain.lua', pre_init=GUTTER_INIT)
     try:
         time.sleep(0.5)
         equal(marks(editor), [], 'non-repository file has no markers')
