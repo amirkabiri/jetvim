@@ -67,6 +67,7 @@ end
 function M.preview()
   if not valid(M.list_win) or not valid(M.diff_win) then return end
   local entry = M.rows[vim.api.nvim_win_get_cursor(M.list_win)[1]]
+  M.preview_entry = entry
   M.preview_generation = M.preview_generation + 1
   local generation, buf = M.preview_generation, M.diff_buf
   if not entry then set_lines(buf, { ' Select a changed file to preview its diff.' }); return end
@@ -182,6 +183,19 @@ function M.open_entry()
   require('jetvim.tree').editor_win = vim.api.nvim_get_current_win()
   require('jetvim.project').open(path)
 end
+function M.focus_diff()
+  if not valid(M.list_win) or not valid(M.diff_win)
+    or vim.api.nvim_get_current_win() ~= M.list_win
+    or vim.api.nvim_win_get_buf(M.list_win) ~= M.list_buf
+    or vim.api.nvim_win_get_buf(M.diff_win) ~= M.diff_buf then return end
+  local entry = M.rows[vim.api.nvim_win_get_cursor(M.list_win)[1]]
+  if not entry then return end
+  -- Resolve the current row synchronously: CursorMoved may still be pending
+  -- when a terminal delivers a selection change and Right in the same batch.
+  -- The preview generation prevents an older file's result replacing this one.
+  if M.preview_entry ~= entry then M.preview() end
+  vim.api.nvim_set_current_win(M.diff_win)
+end
 function M.editor()
   if valid(M.editor_win) then vim.api.nvim_set_current_win(M.editor_win)
   else require('jetvim.tree').editor() end
@@ -243,10 +257,15 @@ function M.toggle()
   map(M.list_buf, '<Down>', function() M.move(1) end)
   map(M.list_buf, '<Up>', function() M.move(-1) end)
   map(M.list_buf, '<CR>', M.open_entry)
+  map(M.list_buf, '<Right>', M.focus_diff)
   map(M.list_buf, '<2-LeftMouse>', M.open_entry)
   map(M.list_buf, '<Tab>', function() vim.api.nvim_set_current_win(M.diff_win) end)
   map(M.diff_buf, '<S-Tab>', function() vim.api.nvim_set_current_win(M.list_win) end)
-  vim.api.nvim_create_autocmd('CursorMoved', { buffer = M.list_buf, callback = M.preview })
+  vim.api.nvim_create_autocmd('CursorMoved', { buffer = M.list_buf, callback = function()
+    if not valid(M.list_win) then return end
+    local entry = M.rows[vim.api.nvim_win_get_cursor(M.list_win)[1]]
+    if entry ~= M.preview_entry then M.preview() end
+  end })
   vim.api.nvim_create_autocmd('WinResized', { group = vim.api.nvim_create_augroup('JetvimGitSize', { clear = true }), callback = M.remember_size })
   vim.api.nvim_create_autocmd('BufWritePost', { group = vim.api.nvim_create_augroup('JetvimGitRefresh', { clear = true }),
     callback = function() if valid(M.list_win) then M.refresh() end end })

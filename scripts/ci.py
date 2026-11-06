@@ -9,7 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 GROUPS = {
     'core': ('integration', 'tui', 'launcher', 'sidebar', 'selection', 'tabs', 'appearance',
-             'disk', 'workspace', 'workspace_autosave', 'tree_create', 'project_search', 'word_delete', 'paging', 'search', 'settings', 'hooks', 'oxlint', 'diagnostics_live', 'blame', 'blame_tui', 'terminal_layout', 'terminal_keys', 'resize', 'layout', 'overview', 'vcs_cache', 'gutter_cache', 'autosave', 'git_layout'),
+             'disk', 'workspace', 'workspace_autosave', 'tree_create', 'project_search', 'word_delete', 'paging', 'search', 'settings', 'hooks', 'oxlint', 'diagnostics_live', 'blame', 'blame_tui', 'terminal_layout', 'terminal_keys', 'resize', 'layout', 'overview', 'vcs_cache', 'gutter_cache', 'autosave', 'git_layout', 'git_focus'),
     'git': ('git_changes', 'vcs', 'git_gutter', ('blame', '--real'), ('disk', '--git-restore')),
     'languages': ('lsp', 'go_lsp'),
     'installer': ('install',),
