@@ -56,16 +56,10 @@ function M.locations()
   end
   ui.pick('Recent Locations', items, function(item) project.open(item.path, item.line, item.col) end)
 end
-function M.find()
-  ui.input('Find literal text', function(query)
-    vim.fn.setreg('/', [[\V]] .. query:gsub(string.char(92), string.char(92, 92)))
-    vim.o.hlsearch = true
-    vim.fn.search(vim.fn.getreg('/'), 'w')
-  end)
-end
+function M.find() require('jetvim.search').open() end
 function M.find_project()
-  if vim.fn.executable('rg') ~= 1 then vim.notify('Find in Files requires ripgrep (rg)', vim.log.levels.WARN); return end
   ui.input('Find in Files (literal)', function(query)
+    if vim.fn.executable('rg') ~= 1 then vim.notify('Find in Files requires ripgrep (rg)', vim.log.levels.WARN); return end
     vim.system({ 'rg', '--json', '--fixed-strings', '--hidden', '--max-count', '100',
       '-g', '!.git', '-g', '!.jetvim', '-g', '!node_modules', '--', query, '.' },
       { cwd = project.root, text = true, timeout = 10000 }, function(result)
@@ -159,8 +153,8 @@ function M.redo() vim.cmd.redo() end
 function M.back() normal('<C-o>') end
 function M.forward() normal('<C-i>') end
 function M.last_edit() normal('g;') end
-function M.next_match() normal('n') end
-function M.previous_match() normal('N') end
+function M.next_match() require('jetvim.search').step(1) end
+function M.previous_match() require('jetvim.search').step(-1) end
 local function cycle_editor(direction)
   local tree = require('jetvim.tree')
   if vim.bo.buftype ~= '' then tree.editor() end
