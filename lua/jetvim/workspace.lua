@@ -40,18 +40,18 @@ local function segments(script)
     else word = word .. char end
     i = i + 1
   end
-  if quote then return nil, 'Unclosed quote in format script' end
+  if quote then return nil, 'Unclosed quote in package script' end
   flush(); if #words > 0 then result[#result + 1] = words end
   return result
 end
-local function script_formatter(package)
+local function script_tools(package, roots, known)
   local scripts = type(package.scripts) == 'table' and package.scripts or {}
   local found, active = {}, {}
   local inspect
   inspect = function(name, depth)
-    if active[name] or depth > 24 then return nil, 'Cycle or excessive nesting in format script aliases' end
+    if active[name] or depth > 24 then return nil, 'Cycle or excessive nesting in package script aliases' end
     local script = scripts[name]
-    if type(script) ~= 'string' then return nil, 'Missing format script alias: ' .. name end
+    if type(script) ~= 'string' then return nil, 'Missing package script alias: ' .. name end
     active[name] = true
     local commands, err = segments(script)
     if not commands then active[name] = nil; return nil, err end
@@ -77,7 +77,7 @@ local function script_formatter(package)
         while words[index] and words[index]:sub(1, 1) == '-' do
           local option = words[index]
           if option == '-C' or option == '--dir' or option == '--prefix' or option == '--filter' or option == '-F' then
-            active[name] = nil; return nil, 'Scoped package-manager format scripts require an explicit formatter'
+            active[name] = nil; return nil, 'Scoped package-manager scripts require an explicit tool hook'
           end
           index = index + 1
         end
@@ -96,19 +96,56 @@ local function script_formatter(package)
         end
       end
       local tool = vim.fs.basename(command):gsub('@.*$', '')
-      if tool == 'oxfmt' or tool == 'prettier' then found[tool] = true end
+      if tool == 'run-p' or tool == 'run-s' or tool == 'npm-run-all' or tool == 'npm-run-all2' then
+        for position = index + 1, #words do
+          local pattern = words[position]
+          if pattern:sub(1, 1) ~= '-' then
+            local lua_pattern = '^' .. pattern:gsub('([%%%^%$%(%)%.%[%]%+%-])', '%%%1'):gsub('%*', '.*'):gsub('%?', '.') .. '$'
+            for alias, value in pairs(scripts) do
+              if type(value) == 'string' and alias:match(lua_pattern) then
+                local ok; ok, err = inspect(alias, depth + 1)
+                if not ok then active[name] = nil; return nil, err end
+              end
+            end
+          end
+        end
+      elseif known[tool] then found[tool] = true end
     end
     active[name] = nil
     return true
   end
-  for _, name in ipairs({ 'format', 'lint:format' }) do
+  for _, name in ipairs(roots) do
     if type(scripts[name]) == 'string' then
       local ok, err = inspect(name, 0)
       if not ok then return nil, err end
     end
   end
+  return found
+end
+local function script_formatter(package)
+  local found, err = script_tools(package, { 'format', 'lint:format' }, { oxfmt = true, prettier = true })
+  if not found then return nil, err end
   if found.oxfmt and found.prettier then return nil, 'Ambiguous project formatter: scripts declare both Oxfmt and Prettier' end
   return found.oxfmt and 'oxfmt' or found.prettier and 'prettier' or nil
+end
+local function declared_tool(dirs, tool)
+  if tool ~= 'oxlint' and tool ~= 'eslint' then return nil, 'declared hooks currently support Oxlint and ESLint' end
+  for _, dir in ipairs(dirs) do
+    local package = json(dir .. '/package.json')
+    if package then
+      local roots = {}
+      for name, script in pairs(type(package.scripts) == 'table' and package.scripts or {}) do
+        if type(script) == 'string' and (name == 'lint' or name:match('^lint:')) then roots[#roots + 1] = name end
+      end
+      if #roots > 0 then
+        table.sort(roots)
+        local found, err = script_tools(package, roots, { oxlint = true, eslint = true })
+        if not found then return nil, err end
+        return found[tool] == true
+      end
+    end
+  end
+  return false
 end
 local prettier_configs = {
   '.prettierrc', '.prettierrc.json', '.prettierrc.json5', '.prettierrc.yaml', '.prettierrc.yml', '.prettierrc.toml',
@@ -158,7 +195,7 @@ local function config_mode(path)
   if name:match('^%.eslintrc') or name:match('%.json$') or name:match('%.ya?ml$') then return 'false' end
   return 'true'
 end
-function M.resolve(root, path, argv, tool_paths)
+function M.resolve(root, path, argv, tool_paths, options)
   root = vim.uv.fs_realpath(root)
   if not root then return nil, 'Workspace root does not exist' end
   path = vim.uv.fs_realpath(path) or vim.fs.normalize(path)
@@ -167,6 +204,11 @@ function M.resolve(root, path, argv, tool_paths)
   for _, dir in ipairs(dirs) do if file(dir .. '/package.json') then cwd = dir; break end end
   local command = argv[1]
   if type(command) ~= 'string' or command == '' then return nil, 'Workspace command is missing' end
+  if options and options.declared then
+    local declared, err = declared_tool(dirs, vim.fs.basename(command))
+    if declared == nil then return nil, err end
+    if not declared then return { argv = vim.deepcopy(argv), cwd = cwd, env = {}, skip = true } end
+  end
   local selected_formatter
   if command == 'project-formatter' then
     local err

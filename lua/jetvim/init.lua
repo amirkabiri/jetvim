@@ -34,7 +34,7 @@ function M.setup(root)
   _G.JetvimTabs = theme.tabs
   vim.o.statusline = '%!v:lua.JetvimStatus()'
   vim.o.tabline = '%!v:lua.JetvimTabs()'
-  vim.diagnostic.config({ virtual_text = true, signs = true, underline = true, severity_sort = true })
+  vim.diagnostic.config({ virtual_text = true, signs = true, underline = true, severity_sort = true, update_in_insert = true })
   vim.ui.select = function(items, opts, callback)
     local entries = {}
     for i, item in ipairs(items) do

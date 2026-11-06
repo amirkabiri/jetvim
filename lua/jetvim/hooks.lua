@@ -55,6 +55,7 @@ next_hook = function(state)
   local hook = state.hooks[state.index]
   if not hook then done(state); return end
   if not fresh(state) then done(state); return end
+  local options
   local name = hook.name or ('save-' .. state.index)
   local source = 'hook:' .. name
   local function finish(result)
@@ -63,16 +64,16 @@ next_hook = function(state)
     if not fresh(state) then done(state); return end
     if hook.diagnostics then
       local ok, err = pcall(function()
-        local parser = hook.diagnostics == 'eslint' and M.eslint or hook.diagnostics
-        local entries = parser(result.stdout or '', result, { buffer = state.buf, file = state.path })
+        local parser = hook.diagnostics == 'eslint' and M.eslint or hook.diagnostics == 'oxlint' and require('jetvim.oxlint').parse or hook.diagnostics
+        local entries = parser(result.stdout or '', result, { buffer = state.buf, file = state.path, cwd = options.cwd })
         assert(type(entries) == 'table', 'Diagnostic parser must return a list')
         require('jetvim.api').diagnostics(source, state.buf, entries)
       end)
       if not ok then notify(name .. ': invalid diagnostics: ' .. tostring(err)) end
       if not fresh(state) then done(state); return end
     end
-    -- ESLint returns 1 for findings. Other failures do not disappear silently.
-    if result.code ~= 0 and not (hook.diagnostics == 'eslint' and result.code == 1) then
+    -- JSON linters return 1 for findings. Other failures are reported.
+    if result.code ~= 0 and not ((hook.diagnostics == 'eslint' or hook.diagnostics == 'oxlint') and result.code == 1) then
       notify(name .. ': command failed (exit ' .. tostring(result.code) .. ')')
       next_hook(state); return
     end
@@ -105,9 +106,9 @@ next_hook = function(state)
   for _, value in ipairs(hook.command) do
     argv[#argv + 1] = value:gsub('{([%w_]+)}', { file = state.path, project = state.root })
   end
-  local options = { cwd = state.root, text = true, timeout = hook.timeout_ms or 10000 }
+  options = { cwd = state.root, text = true, timeout = hook.timeout_ms or 10000 }
   if hook.workspace then
-    local success, resolved, err = pcall(require('jetvim.workspace').resolve, state.root, state.path, argv, state.tool_paths)
+    local success, resolved, err = pcall(require('jetvim.workspace').resolve, state.root, state.path, argv, state.tool_paths, { declared = hook.declared })
     if not success then err, resolved = resolved, nil end
     if not resolved then notify(name .. ': ' .. tostring(err)); next_hook(state); return end
     if resolved.skip then next_hook(state); return end
@@ -126,10 +127,11 @@ start = function(buf)
   for _, hook in ipairs((require('jetvim.settings').get().hooks or {}).after_save or {}) do
     local ok, matches = pcall(function()
       assert(type(hook) == 'table' and type(hook.pattern) == 'string' and type(hook.command) == 'table' and vim.islist(hook.command) and #hook.command > 0, 'Expected pattern and command argv')
+      assert(hook.declared == nil or type(hook.declared) == 'boolean' and (not hook.declared or hook.workspace == true), 'declared requires workspace=true')
       assert(hook.workspace == nil or type(hook.workspace) == 'boolean', 'workspace must be a boolean')
       assert(hook.name == nil or type(hook.name) == 'string' and hook.name ~= '', 'Hook name must be a nonempty string')
       for _, arg in ipairs(hook.command) do assert(type(arg) == 'string', 'Command arguments must be strings') end
-      assert(hook.diagnostics == nil or hook.diagnostics == 'eslint' or type(hook.diagnostics) == 'function', 'Unknown diagnostic parser')
+      assert(hook.diagnostics == nil or hook.diagnostics == 'eslint' or hook.diagnostics == 'oxlint' or type(hook.diagnostics) == 'function', 'Unknown diagnostic parser')
       assert(hook.timeout_ms == nil or type(hook.timeout_ms) == 'number' and hook.timeout_ms >= 1 and hook.timeout_ms <= 120000, 'Invalid timeout')
       return vim.regex('\\v' .. hook.pattern):match_str(path) ~= nil
     end)

@@ -1,10 +1,12 @@
 -- Git change bars live in the left sign column. Baselines are read from HEAD;
 -- ordinary typing only diffs the cached text and never starts a Git process.
 local M = { states = {}, namespace = vim.api.nvim_create_namespace('JetvimGitGutter'), max_bytes = 5 * 1024 * 1024 }
+-- Reserve two of the three sign slots for Git when multiple diagnostic
+-- providers share a line. Standard diagnostic priorities are 10–13.
 local signs = {
-  added = { text = '▎', group = 'JetvimGutterAdded', priority = 7 },
-  modified = { text = '▎', group = 'JetvimGutterModified', priority = 7 },
-  deleted = { text = '▸', group = 'JetvimGutterDeleted', priority = 8 },
+  added = { text = '▎', group = 'JetvimGutterAdded', priority = 20 },
+  modified = { text = '▎', group = 'JetvimGutterModified', priority = 20 },
+  deleted = { text = '▸', group = 'JetvimGutterDeleted', priority = 21 },
 }
 local function disabled() return vim.env.JETVIM_DISABLE_VCS == '1' end
 local function eligible(buf)

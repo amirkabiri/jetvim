@@ -17,9 +17,18 @@ return {
         command = { 'project-formatter', '--write', '{file}' },
       },
       {
-        name = 'eslint',
-        pattern = [[\.js$]],
+        name = 'oxlint',
+        pattern = [[\.(js|jsx|ts|tsx)$]],
         workspace = true,
+        declared = true,
+        command = { 'oxlint', '--format', 'json', '{file}' },
+        diagnostics = 'oxlint',
+      },
+      {
+        name = 'eslint',
+        pattern = [[\.(js|jsx|ts|tsx)$]],
+        workspace = true,
+        declared = true,
         command = { 'eslint', '--format', 'json', '{file}' },
         diagnostics = 'eslint',
         timeout_ms = 10000,
@@ -50,20 +59,30 @@ instead of guessing. Only the saved file is formatted; script globs and commands
 are never executed. Use `prettier` or `oxfmt` directly to select one explicitly. A
 project `tool_paths` list replaces the user list; `{}` clears inherited paths.
 
+With `declared = true`, a linter runs only when the closest package's
+`lint`/`lint:*` scripts declare that tool. Package-manager aliases and
+`run-p`/`run-s`/`npm-run-all` aliases are inspected, never executed. A package
+that declares only ESLint does not inherit Oxlint from the root. If it has no
+lint scripts, ancestor package declarations are considered. Packages declaring
+both tools receive both sets of diagnostics. Omit `declared` for an explicit
+hook that should run regardless of package scripts.
+
 Workspace ESLint uses the nearest `eslint.config.js/mjs/cjs`, legacy
 `.eslintrc*`, or package `eslintConfig`, with the corresponding flat/legacy mode.
 It honors an explicit `--config` argument. Files without a project-bounded
 configuration are skipped and their previous hook diagnostics cleared. Ordinary
 hooks without `workspace = true` retain their existing command behavior.
 
-ESLint JSON findings appear as editor diagnostics, including left signs and the
+ESLint and Oxlint JSON findings appear as editor diagnostics, including left signs and the
 right overview. Exit 1 means findings; other failures show a warning. Newer edits
 invalidate pending results. Give hooks unique, stable `name` values.
 
 A custom `diagnostics` function receives `(stdout, result, context)` and returns
 entries with one-based `line`, `column` (UTF-8 bytes), `message`, `severity`
 (`error`, `warn`, `info`, `hint`), and optional `code`. `context` contains `file`
-and `buffer`. The ESLint parser converts its UTF-16 columns automatically.
+and `buffer`. The ESLint parser converts its UTF-16 columns automatically. Oxlint columns
+are already UTF-8 bytes; relative filenames resolve from the job directory.
+Custom parser `context.cwd` contains that directory.
 
 Extensions can publish independently:
 
