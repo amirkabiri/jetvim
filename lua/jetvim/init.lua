@@ -6,7 +6,7 @@ function M.setup(root)
     expandtab = true, shiftwidth = 2, tabstop = 2, smartindent = true,
     ignorecase = true, smartcase = true, incsearch = true, hlsearch = true,
     splitright = true, splitbelow = true, hidden = true, wrap = false,
-    cursorline = true, scrolloff = 5, sidescrolloff = 5, signcolumn = 'yes',
+    cursorline = true, scrolloff = 5, sidescrolloff = 5, signcolumn = 'yes:3',
     updatetime = 250, timeoutlen = 450, ttimeoutlen = 100,
     laststatus = 3, showtabline = 2, showmode = false,
     selection = 'exclusive', selectmode = 'key', keymodel = 'startsel,stopsel',
@@ -90,5 +90,6 @@ function M.setup(root)
     if vim.bo.modifiable then vim.cmd.startinsert() end
   end })
   require('jetvim.vcs').setup()
+  require('jetvim.gutter').setup()
 end
 return M
