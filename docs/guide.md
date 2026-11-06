@@ -114,8 +114,10 @@ restarts; searching, refreshing and refocusing preserve it too.
 Plain keys, including `a`, `r`, `l`, Space and `:`, are search text in the
 sidebar. Exit to the editor before using Vim command-line or Space-prefixed
 fallback shortcuts. Insert creates a file/directory (a trailing `/` creates a
-directory), and F5 refreshes the tree. Native ⌘N also opens the creation prompt
-when the terminal forwards it; the Warp bridge does not currently map ⌘N.
+directory), and F5 refreshes the tree. **⌘N** opens the same prompt through
+native terminal input or the Warp bridge. It acts only while the tree is focused.
+Creation uses the selected folder or the selected file’s parent, creates the disk
+entry immediately, and never overwrites an existing path.
 Filenames are passed as data, so spaces and special characters work.
 
 ## Resize panes with the keyboard
@@ -238,7 +240,10 @@ closes the field and returns to the editor. **⌘G / ⌘⇧G** continue the sear
 Use `hello`, `h(ello|i)` or `/hello/i`. Patterns use Vim's very-magic regular
 expressions; the optional `i` flag ignores case. Invalid patterns appear in the
 bar without an error dialog. Search is per line, with a 5,000-match / 2 MiB limit
-indicated by `+`. **⌘⇧F** opens Find in Files from the editor or project tree.
+indicated by `+`. **⌘⇧F** opens a focused Find in Files modal. In the tree it
+searches the selected folder or file’s parent; selecting the root searches the
+whole project. The modal displays its scope and searches literal text as you type.
+See [search behavior and limits](search.md).
 
 ## Settings and autosave
 

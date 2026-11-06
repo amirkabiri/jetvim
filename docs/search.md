@@ -13,6 +13,19 @@ without opening an error dialog.
 Search stops at 5,000 matches or 2 MiB of text; `+` beside the match count marks
 that limit. The field follows the active editor's width and preserves pane sizes.
 
-**⌘⇧F** opens Find in Files from either the editor or the project sidebar,
-including during sidebar speed search. The prompt opens even without ripgrep;
-executing a project search requires `rg`.
+## Find in Files
+
+**⌘⇧F** immediately opens a focused search modal. In the project tree it searches
+within the selected folder, or a selected file's parent; selecting the root
+searches the whole project. From the editor it searches the whole project.
+The modal displays its scope above the input.
+
+Type literal text to search after a 200 ms pause. Up/Down select results; Enter
+opens the selected file at its matching line; Escape cancels and restores focus.
+Changing the query cancels the previous search. Errors appear inside the modal.
+The input opens even without ripgrep; searching requires `rg`.
+
+Search respects ignore files and skips `.git`, `.jetvim`, `.idea`, `node_modules`
+and files over 2 MiB. Results stop at 500 matching lines (100 per file) and each
+search times out after 10 seconds. A `+` marks capped results. Paths escaping the
+project, including folder symlinks pointing outside it, cannot become search scopes.

@@ -61,32 +61,7 @@ function M.locations()
   ui.pick('Recent Locations', items, function(item) project.open(item.path, item.line, item.col) end)
 end
 function M.find() require('jetvim.search').open() end
-function M.find_project()
-  ui.input('Find in Files (literal)', function(query)
-    if vim.fn.executable('rg') ~= 1 then vim.notify('Find in Files requires ripgrep (rg)', vim.log.levels.WARN); return end
-    vim.system({ 'rg', '--json', '--fixed-strings', '--hidden', '--max-count', '100',
-      '-g', '!.git', '-g', '!.jetvim', '-g', '!node_modules', '--', query, '.' },
-      { cwd = project.root, text = true, timeout = 10000 }, function(result)
-        vim.schedule(function()
-          if result.code ~= 0 and result.code ~= 1 then
-            vim.notify('Search failed: ' .. (result.stderr or 'timeout'), vim.log.levels.ERROR); return
-          end
-          local items = {}
-          for line in (result.stdout or ''):gmatch('[^\n]+') do
-            local ok, entry = pcall(vim.json.decode, line)
-            if ok and entry.type == 'match' and #items < 2000 then
-              local data = entry.data
-              if data.path.text and data.lines.text then
-                items[#items + 1] = { label = data.path.text .. ':' .. data.line_number .. '  ' .. vim.trim(data.lines.text),
-                  path = data.path.text, line = data.line_number, col = data.submatches[1].start }
-              end
-            end
-          end
-          ui.pick('Find in Files · up to 2000 matches', items, function(item) project.open(item.path, item.line, item.col) end)
-        end)
-      end)
-  end)
-end
+function M.find_project() require('jetvim.project_search').open() end
 function M.line()
   ui.input('Go to line[:column]', function(value)
     local row, col = value:match('^(%d+):?(%d*)$')
