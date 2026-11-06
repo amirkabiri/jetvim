@@ -58,8 +58,16 @@ def raw(value):
     time.sleep(0.15)
 
 
-def name():
-    return lua('return vim.fs.basename(vim.api.nvim_buf_get_name(0))')
+def clear_highlights(label):
+    equal(lua('return vim.v.hlsearch'),0,label+' clears native highlight state')
+    equal(lua('return vim.o.hlsearch'),True,label+' keeps hlsearch preference enabled')
+    equal(lua('local s=require("jetvim.search"); return #vim.api.nvim_buf_get_extmarks(s.source,vim.api.nvim_get_namespaces().JetvimSearch,0,-1,{})'),0,label+' clears custom search marks')
+    lua('pcall(vim.api.nvim__inspect_cell,1,0,0); vim.cmd("redraw!"); return true')
+    time.sleep(.06)
+    equal(lua('local s=require("jetvim.search"); local search=vim.api.nvim_get_hl(0,{name="Search",link=false}); local active=vim.api.nvim_get_hl(0,{name="IncSearch",link=false}); '
+              'for _,column in ipairs({1,7,13}) do local p=vim.fn.screenpos(s.owner,1,column); local cell=vim.api.nvim__inspect_cell(1,p.row-1,p.col-1); '
+              'local bg=cell[2].background; if bg and (bg==search.bg or bg==active.bg) then return false end end; return true'),True,label+' actual TUI text cells have no search background')
+
 
 
 with tempfile.TemporaryDirectory(prefix='search-project-', dir=STATE) as directory:
@@ -125,8 +133,11 @@ with tempfile.TemporaryDirectory(prefix='search-project-', dir=STATE) as directo
         keys('<C-u>')
         raw(b'hello')
         keys('<CR>')
+        equal(lua('return vim.v.hlsearch'),1,'plain query exercises native highlighting before close')
         keys('<Esc>')
         time.sleep(0.1)
+        clear_highlights('plain Escape')
+        equal(lua('return vim.fn.getreg("/")'),r'\C\vhello','closing preserves plain search pattern')
         equal(lua('return vim.api.nvim_get_current_win()'), lua('return vim.g.search_owner'), 'Escape returns editor focus')
         equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'), [1,12], 'Escape keeps selected match caret')
         equal(lua('return #vim.api.nvim_list_wins()'), windows, 'no leaked search windows')
@@ -139,7 +150,14 @@ with tempfile.TemporaryDirectory(prefix='search-project-', dir=STATE) as directo
         index=next(i for i,item in enumerate(bindings,1) if item['id']=='find')
         raw(f'\x1b[{0xF0000+index}u'.encode())
         equal(lua('return vim.bo.filetype'), 'jetvim-search', 'relay CommandF opens inline input')
+        keys('<C-u>');raw(b'/hello/i')
+        equal(lua('return #require("jetvim.search").matches'),5,'reopened regex still finds case-insensitive matches')
         keys('<Esc>')
+        clear_highlights('regex Escape')
+        equal(lua('return vim.fn.getreg("/")'),r'\c\vhello','closing preserves regex and ignore-case flag')
+        equal(lua('return vim.fn.mode()'),'i','closing regex preserves editor typing')
+        raw(b'\x1b[103;10u')
+        equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'),[1,6],'CommandShiftG navigates retained case-insensitive pattern')
         # Find in Files must route from tree, rather than becoming speed-search text.
         lua('require("jetvim.tree").focus(); return true')
         lua('_G.search_original_executable=vim.fn.executable; vim.fn.executable=function(name) if name=="rg" then return 0 end; return _G.search_original_executable(name) end; return true')

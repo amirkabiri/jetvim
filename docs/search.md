@@ -2,7 +2,7 @@
 
 **⌘F** opens a one-row search field at the top of the active editor. Matches
 highlight as you type. Enter moves forward, Shift-Enter moves backward, and
-Escape closes the field and returns to the selected match. **⌘G / ⌘⇧G** also
+Escape closes the field, clears highlights and returns to the selected match. **⌘G / ⌘⇧G** also
 navigate matches, including after the field closes.
 
 Type `hello`, `h(ello|i)` or `/hello/i`. Search uses Vim's very-magic regular

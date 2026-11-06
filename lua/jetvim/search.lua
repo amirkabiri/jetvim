@@ -125,12 +125,16 @@ function M.close()
     return
   end
   M.closing = true
+  local had_search = M.input ~= nil
   local owner, typing = M.owner, M.typing
   local windows, buffers = { M.win, M.status_win }, { M.input, M.status_buf }
   M.win, M.status_win, M.input, M.status_buf = nil, nil, nil, nil
   for _, win in pairs(windows) do if valid(win) then pcall(vim.api.nvim_win_close, win, true) end end
   for _, buf in pairs(buffers) do if vim.api.nvim_buf_is_valid(buf) then pcall(vim.api.nvim_buf_delete, buf, { force = true }) end end
   clear()
+  -- Keep the last pattern for CmdG/n without leaving native Search highlights.
+  -- :nohlsearch resets the current display state, not the user's hlsearch option.
+  if had_search then vim.cmd.nohlsearch() end
   M.closing = false
   if focus and valid(owner) then
     vim.api.nvim_set_current_win(owner)
