@@ -1,6 +1,6 @@
 # Jetvim
 
-if jetbrains and vim had a baby!
+Imagine if JetBrains and Vim had a baby!
 
 ![Jetvim: a tiny editor with big IDE energy](assets/jetvim.svg)
 
