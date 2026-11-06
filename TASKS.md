@@ -5,7 +5,7 @@ Implementation agents must not run Git commands or create commits.
 All development changes and test fixtures stay inside this checkout.
 A later explicit request authorizes changes only to one external project’s Jetvim settings; its source and audit artifacts are not committed here.
 
-Latest completed implementation: `00d6a09`. Validated changes awaiting a commit and active fixes are distinguished below.
+Statuses distinguish committed/pushed work, independently validated changes awaiting commit, active fixes, and unverified platform checks.
 
 | User request | Owner | Status | Acceptance checks |
 | --- | --- | --- | --- |
@@ -44,13 +44,14 @@ Latest completed implementation: `00d6a09`. Validated changes awaiting a commit 
 | Option-Delete deletes previous word in embedded terminal | public_ci agent | Independently validated: 27 native/relay byte + real Bash checks; committed `540ff33` | Native127/8 CSI-u, legacy Escape-Delete and relay each send one Ctrl-W; physical Warp right-Option still requires live user verification |
 | Reload externally changed files, including git restore | disk_sync agent | Committed/pushed `b0b2c1a`; 57 checks including real Git restore | Clean named buffers reload automatically; preserve views and unsaved edits; refresh Git indicators; handle atomic replacements/deletion/recreation |
 | Short workspace-aware formatter/linter hooks | hooks_bridge + project_hooks agents | Committed/pushed `dc0d0c8`; 49 workspace + 21 actual autosave pipeline checks | Native local-tool/config discovery; short user/project Lua settings; preserve argv/cwd/ESLint diagnostics; no dependency downloads |
-| Configure an existing project with its installed formatter/linter | project_hooks agent | Settings updated: declared formatter → Oxlint/ESLint where declared; native Oxlint support validated, awaiting commit | Modify only explicitly authorized project settings; use installed tools and correct workspace configurations; validate read-only |
+| Configure an existing project with its installed formatter/linter | project_hooks agent | Settings updated: declared formatter → Oxlint/ESLint where declared; native Oxlint support committed/pushed `cf5252f` | Modify only explicitly authorized project settings; use installed tools and correct workspace configurations; validate read-only |
 | Create files/folders using Command-N in the tree | public_ci agent | Committed/pushed `ebfb767`; 37 creation checks, 88 bridge shortcuts validated | Native/relay prompt, selected directory, exclusive file creation, nested folders, cancel and path guards |
-| Configure the project lint chain, including Oxlint | hooks_bridge + project_hooks agents | Independently validated: 36 parser/pipeline checks plus actual installed Oxlint on an isolated fixture; awaiting commit | Respect declared Oxlint/ESLint scripts; parse Oxlint JSON into line diagnostics; retain complementary checks and ESLint-only workspaces |
+| Configure the project lint chain, including Oxlint | hooks_bridge + project_hooks agents | Committed/pushed `cf5252f`; 36 parser/pipeline checks plus actual installed Oxlint on an isolated fixture | Respect declared Oxlint/ESLint scripts; parse Oxlint JSON into line diagnostics; retain complementary checks and ESLint-only workspaces |
 | Clear in-file search highlights when closing search | public_ci agent | Committed/pushed `00d6a09`; 45 PTY/rendering checks | Clear native and custom highlights on Escape; preserve last query and Command-G navigation |
 | Respect the declared project formatter on save | hooks_bridge + project_hooks agents | Committed/pushed `dc0d0c8`; actual target-file Oxfmt/config checks passed read-only | Inspect scripts/configs without running scripts; local binaries only; one saved file; ambiguity reported |
-| Show diagnostics while typing and preserve Git signs with multiple linters | public_ci agent | Independently validated: 21 live TUI + 35 real Git gutter checks; awaiting commit | Updates in insert mode; two Git signs plus highest diagnostic coexist in three slots; cursor/focus unchanged |
-| Option-Delete in the folder-search modal | public_ci agent | In progress: user clarified popup context; native/relay word-delete and typing-mode fix underway | Both Option key encodings delete a word without leaving the search input; plain Backspace still deletes one character |
+| Show diagnostics while typing and preserve Git signs with multiple linters | public_ci agent | Committed/pushed `cf5252f`; 21 live TUI + 35 real Git gutter checks | Updates in insert mode; two Git signs plus highest diagnostic coexist in three slots; cursor/focus unchanged |
+| Option-Delete in the folder-search modal | public_ci agent | Committed/pushed `b34f2ce`; 118 independent PTY checks | Both Option key encodings delete a word without leaving the search input; plain Backspace still deletes one character |
+| Right Arrow from Local Changes list focuses its diff pane | git_diff_focus agent | In progress | Native arrow from a selected file focuses its existing diff, preserves selection and sizes, and remains safe for empty/non-repositories |
 | Commit/push completed tasks after independent validation | Lead | Active policy; search, gutter, installer and editor bundle committed/pushed | Review code and exact staged functionality, run relevant tests, commit and push without agent Git access |
 | Initialize Git, validate delegated changes, then commit | Lead | Complete: implementation committed as `c4db90e` after independent validation | Independently inspect diffs and run required tests before committing |
 | Support additional terminals over time | Future terminal adapters | Backlog | Shared actions; terminal-specific forwarding and focus validation |
@@ -136,6 +137,6 @@ Current follow-up validation:
 - Oxlint parsing is independently validated with 36 cases and actual installed
   Oxlint JSON from a generated fixture; no real external-project source was linted.
 - Live diagnostics and multi-provider Git sign coexistence passed 21 rendering
-  checks and the 35-check real Git gutter suite. These changes await a commit.
+  checks and the 35-check real Git gutter suite. Committed/pushed as `cf5252f`.
 - Option-Delete’s latest report concerns the folder-search input, distinct from
-  the already-validated embedded-terminal transport. That popup fix remains active.
+  the already-validated embedded-terminal transport. The popup fix is committed as `b34f2ce` after 118 independent checks.
