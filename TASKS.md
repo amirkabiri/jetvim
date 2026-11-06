@@ -51,7 +51,7 @@ Statuses distinguish committed/pushed work, independently validated changes awai
 | Respect the declared project formatter on save | hooks_bridge + project_hooks agents | Committed/pushed `dc0d0c8`; actual target-file Oxfmt/config checks passed read-only | Inspect scripts/configs without running scripts; local binaries only; one saved file; ambiguity reported |
 | Show diagnostics while typing and preserve Git signs with multiple linters | public_ci agent | Committed/pushed `cf5252f`; 21 live TUI + 35 real Git gutter checks | Updates in insert mode; two Git signs plus highest diagnostic coexist in three slots; cursor/focus unchanged |
 | Option-Delete in the folder-search modal | public_ci agent | Committed/pushed `b34f2ce`; 118 independent PTY checks | Both Option key encodings delete a word without leaving the search input; plain Backspace still deletes one character |
-| Right Arrow from Local Changes list focuses its diff pane | git_diff_focus agent | In progress | Native arrow from a selected file focuses its existing diff, preserves selection and sizes, and remains safe for empty/non-repositories |
+| Right Arrow from Local Changes list focuses its diff pane | git_diff_focus agent | Committed `b3a333a`; 36 focus + 48 real Git checks passed; push verification pending | Native arrow from a selected file focuses its existing diff, preserves selection and sizes, and remains safe for empty/non-repositories |
 | Commit/push completed tasks after independent validation | Lead | Active policy; search, gutter, installer and editor bundle committed/pushed | Review code and exact staged functionality, run relevant tests, commit and push without agent Git access |
 | Initialize Git, validate delegated changes, then commit | Lead | Complete: implementation committed as `c4db90e` after independent validation | Independently inspect diffs and run required tests before committing |
 | Support additional terminals over time | Future terminal adapters | Backlog | Shared actions; terminal-specific forwarding and focus validation |
@@ -140,3 +140,5 @@ Current follow-up validation:
   checks and the 35-check real Git gutter suite. Committed/pushed as `cf5252f`.
 - Option-Delete’s latest report concerns the folder-search input, distinct from
   the already-validated embedded-terminal transport. The popup fix is committed as `b34f2ce` after 118 independent checks.
+
+Git pane navigation: `b3a333a` passed 36 focused PTY checks, including stale callbacks and diff reading-position preservation, plus the existing 48 real Git checks. The lead owns the commit; the agent ran no Git commands.
