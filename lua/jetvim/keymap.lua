@@ -26,11 +26,34 @@ function M.setup(root)
     if next_action then next_action() end
   end
   local bindings = vim.deepcopy(M.bindings)
+  local function selecting(id)
+    return id:match('^select_') or id == 'extend_selection' or id == 'shrink_selection'
+  end
+  -- Insert-mode selection shortcuts finish synchronously before printable
+  -- typeahead. The explicit caret survives the native Insert->Normal transition.
+  M.insert_selection = function(id, buf, win, row, col)
+    if not selecting(id) or vim.api.nvim_get_current_buf() ~= buf
+      or vim.api.nvim_get_current_win() ~= win then return end
+    local ok, err = pcall(function()
+      vim.api.nvim_win_set_cursor(win, { row, col })
+      actions[id]()
+    end)
+    if not ok then vim.notify('Selection: ' .. tostring(err), vim.log.levels.ERROR) end
+    if vim.fn.mode() == 'n' and vim.bo.modifiable and not vim.bo.readonly
+      and (vim.bo.buftype == '' or vim.bo.buftype == 'prompt'
+        or vim.bo.filetype == 'jetvim-search' or vim.bo.filetype == 'jetvim-project-search') then
+      vim.cmd.startinsert()
+    end
+  end
   -- Fn+Up/Down are already translated to standard PageUp/PageDown keys by
   -- terminals. Use the common dispatcher without adding macOS bridge chords.
   vim.list_extend(bindings, {
     { id = 'page_up', label = 'Page Up', key = '<PageUp>', native_only = true },
     { id = 'page_down', label = 'Page Down', key = '<PageDown>', native_only = true },
+    { id = 'select_page_up', label = 'Select Page Up', key = '<S-PageUp>', native_only = true },
+    { id = 'select_page_down', label = 'Select Page Down', key = '<S-PageDown>', native_only = true },
+    { id = 'select_home', label = 'Select to Line Start', key = '<S-Home>', native_only = true },
+    { id = 'select_end', label = 'Select to Line End', key = '<S-End>', native_only = true },
   })
   for index, binding in ipairs(bindings) do
     assert(actions[binding.id], 'Missing action: ' .. binding.id)
@@ -66,17 +89,28 @@ function M.setup(root)
       else execute() end
     end
     local opts = { silent = true, desc = binding.label }
-    vim.keymap.set({ 'n', 'i', 'x', 's' }, binding.key, invoke, opts)
+    local function bind(key)
+      vim.keymap.set({ 'n', 'i', 'x', 's' }, key, invoke, opts)
+      if selecting(binding.id) then
+        vim.keymap.set('i', key, function()
+          if running then pending[#pending + 1] = invoke; return '' end
+          local cursor = vim.api.nvim_win_get_cursor(0)
+          return string.format([[<C-\><C-n><Cmd>lua require('jetvim.keymap').insert_selection(%q,%d,%d,%d,%d)<CR>]],
+            binding.id, vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win(), cursor[1], cursor[2])
+        end, { expr = true, silent = true, desc = binding.label })
+      end
+    end
+    bind(binding.key)
     for _, alias in ipairs(binding.aliases or {}) do
-      vim.keymap.set({ 'n', 'i', 'x', 's' }, alias.key, invoke, opts)
+      bind(alias.key)
       for _, key in ipairs(alias.alternate_keys or {}) do
-        vim.keymap.set({ 'n', 'i', 'x', 's' }, key, invoke, opts)
+        bind(key)
       end
     end
     -- A dedicated terminal profile sends these sequences even when the terminal
     -- would normally consume Command shortcuts. No global preferences change.
     local relay = not binding.native_only and vim.fn.nr2char(0xF0000 + index) or nil
-    if relay then vim.keymap.set({ 'n', 'i', 'x', 's' }, relay, invoke, opts) end
+    if relay then bind(relay) end
     if binding.fallback then vim.keymap.set('n', binding.fallback, invoke, opts) end
     if binding.id == 'close' or binding.id == 'tree_new' then
       -- Editor-tab close and tree-only creation never reach terminal input.
@@ -102,6 +136,14 @@ function M.setup(root)
       vim.keymap.set('t', binding.key, rhs, opts)
       vim.keymap.set('t', relay, rhs, opts)
     end
+  end
+  -- Ordinary arrows collapse typing selections to their relevant boundary;
+  -- explicit Vim Visual mode keeps its native arrow movement.
+  for key, motion in pairs({ ['<Up>'] = 'k', ['<Left>'] = 'h', ['<Down>'] = 'j', ['<Right>'] = 'l' }) do
+    local ending = key == '<Down>' or key == '<Right>'
+    vim.keymap.set('s', key, function() require('jetvim.edit').collapse_selection(ending, key) end,
+      { silent = true, desc = 'Collapse Selection' })
+    vim.keymap.set('x', key, motion, { silent = true, desc = 'Extend Visual Selection' })
   end
   vim.keymap.set({ 'n', 'i', 'x', 's' }, '<F1>', actions.documentation, { desc = 'Quick Documentation' })
   vim.keymap.set('i', '<Tab>', function()

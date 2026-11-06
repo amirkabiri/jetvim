@@ -53,6 +53,13 @@ The helper only intercepts a binding when:
 All other key events pass through. Double Shift opens Search Everywhere.
 On quitting, the helper exits and the PTY wrapper restores terminal input modes.
 
+The bridge also forwards **Fn+Shift+Up/Down** as Shift-PageUp/Down and
+**Fn+Shift+Left/Right** as Shift-Home/End. This bypasses Warp bindings that consume
+those combinations. These native navigation sequences go only to this Jetvim
+session's private PTY; existing shortcut relay IDs stay unchanged. Ordinary
+Shift-arrows retain their normal behavior. Restart `jetvim --warp-keys` after
+updating the bridge. Physical Fn forwarding still needs a live Warp check.
+
 The initial bridge uses physical US keyboard positions. Other layouts need a
 layout-aware translator. A Warp window must expose its active session's terminal
 title to macOS Accessibility. If Warp keeps a custom window title or exposes a

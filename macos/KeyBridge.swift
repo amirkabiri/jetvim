@@ -33,6 +33,86 @@ var tap: CFMachPort?
 var lastShift: Double = 0
 var interveningKey = false
 
+// The function modifier also identifies navigation keys, not only a held Fn
+// key. Track the actual modifier key separately so plain Shift-arrows retain
+// their native line/character selection behavior.
+struct FnState {
+    var held = false
+    mutating func observe(code: Int64, flags: CGEventFlags) {
+        if code == 63 { held = flags.contains(.maskSecondaryFn) }
+        // Called for modifier changes only. Another modifier change without Fn
+        // repairs a missed Fn release; a navigation key's flag cannot set it.
+        else if !flags.contains(.maskSecondaryFn) { held = false }
+    }
+    func pressed(hardware: Bool) -> Bool { held || hardware }
+}
+var fnState = FnState()
+enum NativeNavigation: String, CaseIterable {
+    case pageUp = "native:shift-page-up"
+    case pageDown = "native:shift-page-down"
+    case home = "native:shift-home"
+    case end = "native:shift-end"
+}
+func nativeNavigation(owned: Bool, code: Int64, flags: CGEventFlags, physicalFn: Bool) -> NativeNavigation? {
+    guard owned, flags.intersection(modifierMask) == .maskShift else { return nil }
+    // Some keyboard layouts/macOS paths translate Fn-arrows before the tap.
+    switch code {
+    case 116: return .pageUp
+    case 121: return .pageDown
+    case 115: return .home
+    case 119: return .end
+    default: break
+    }
+    guard physicalFn else { return nil }
+    switch code {
+    case 126: return .pageUp
+    case 125: return .pageDown
+    case 123: return .home
+    case 124: return .end
+    default: return nil
+    }
+}
+func checkFnKeys() {
+    var checked = 0
+    func check(_ condition: Bool) {
+        guard condition else { fail("Fn routing self-check failed at case \(checked + 1)") }
+        checked += 1
+    }
+    for (raw, translated, expected) in [(Int64(126), Int64(116), NativeNavigation.pageUp),
+                                        (125, 121, .pageDown), (123, 115, .home), (124, 119, .end)] {
+        check(nativeNavigation(owned: true, code: raw, flags: .maskShift, physicalFn: true) == expected)
+        check(nativeNavigation(owned: true, code: translated, flags: .maskShift, physicalFn: false) == expected)
+        check(nativeNavigation(owned: true, code: raw, flags: [.maskShift, .maskSecondaryFn], physicalFn: false) == nil)
+        check(nativeNavigation(owned: false, code: raw, flags: .maskShift, physicalFn: true) == nil)
+        check(nativeNavigation(owned: false, code: translated, flags: .maskShift, physicalFn: false) == nil)
+        for modifiers: CGEventFlags in [[], .maskCommand, .maskAlternate, .maskControl,
+                                        [.maskShift, .maskCommand], [.maskShift, .maskAlternate], [.maskShift, .maskControl]] {
+            check(nativeNavigation(owned: true, code: raw, flags: modifiers, physicalFn: true) == nil)
+        }
+    }
+    var state = FnState()
+    state.observe(code: 126, flags: [.maskShift, .maskSecondaryFn])
+    check(!state.pressed(hardware: false))
+    state.observe(code: 63, flags: .maskSecondaryFn)
+    check(state.pressed(hardware: false))
+    state.observe(code: 56, flags: [.maskShift, .maskSecondaryFn])
+    check(state.pressed(hardware: false))
+    state.observe(code: 63, flags: [])
+    check(!state.pressed(hardware: false))
+    check(state.pressed(hardware: true))
+    state.observe(code: 63, flags: .maskSecondaryFn)
+    state.observe(code: 56, flags: [.maskShift, .maskSecondaryFn])
+    check(state.pressed(hardware: false))
+    // Simulate a dropped Fn release, followed by a Shift modifier change.
+    state.observe(code: 56, flags: .maskShift)
+    check(!state.pressed(hardware: false))
+    state.observe(code: 56, flags: [.maskShift, .maskSecondaryFn])
+    check(!state.pressed(hardware: false))
+    check(nativeNavigation(owned: true, code: 0, flags: .maskShift, physicalFn: true) == nil)
+    print("FN ROUTING OK: \(checked) cases (no event tap)")
+    print("NATIVE IDS: " + NativeNavigation.allCases.map({ $0.rawValue }).joined(separator: ","))
+}
+
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data((message + "\n").utf8))
     exit(1)
@@ -60,6 +140,7 @@ if titleToken == "--check-keymap" {
     print("KEYMAP OK: \(bindings.count) physical shortcuts")
     exit(0)
 }
+if titleToken == "--check-fn-keys" { checkFnKeys(); exit(0) }
 
 func ownsFocus() -> Bool {
     guard let app = NSWorkspace.shared.frontmostApplication,
@@ -79,13 +160,20 @@ func emit(_ id: String) {
 }
 let callback: CGEventTapCallBack = { _, type, event, _ in
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        fnState = FnState()
         if let activeTap = tap { CGEvent.tapEnable(tap: activeTap, enable: true) }
         return Unmanaged.passUnretained(event)
     }
-    guard ownsFocus() else { lastShift = 0; return Unmanaged.passUnretained(event) }
+    let code = event.getIntegerValueField(.keyboardEventKeycode)
     if type == .flagsChanged {
-        let code = event.getIntegerValueField(.keyboardEventKeycode)
+        fnState.observe(code: code, flags: event.flags)
+        if code == 63 { lastShift = 0; interveningKey = true }
+    }
+    guard ownsFocus() else { lastShift = 0; return Unmanaged.passUnretained(event) }
+    let physicalFn = fnState.pressed(hardware: CGEventSource.keyState(.combinedSessionState, key: 63))
+    if type == .flagsChanged {
         let flags = event.flags.intersection(modifierMask)
+        if physicalFn { lastShift = 0; return Unmanaged.passUnretained(event) }
         if (code == 56 || code == 60) && flags == .maskShift {
             let now = ProcessInfo.processInfo.systemUptime
             if lastShift > 0 && now - lastShift < 0.35 && !interveningKey {
@@ -95,7 +183,10 @@ let callback: CGEventTapCallBack = { _, type, event, _ in
         return Unmanaged.passUnretained(event)
     }
     interveningKey = true
-    let code = event.getIntegerValueField(.keyboardEventKeycode)
+    if let navigation = nativeNavigation(owned: true, code: code, flags: event.flags, physicalFn: physicalFn) {
+        emit(navigation.rawValue)
+        return nil
+    }
     let flags = event.flags.intersection(modifierMask).rawValue
     if let id = bindings["\(code):\(flags)"] {
         emit(id)

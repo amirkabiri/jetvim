@@ -147,6 +147,23 @@ function M.select_all()
   vim.api.nvim_win_set_cursor(0, { row, #(vim.api.nvim_buf_get_lines(0, row - 1, row, false)[1]) })
   vim.cmd.normal({ args = { vim.keycode('<C-g>') }, bang = true })
 end
+function M.collapse_selection(ending, fallback)
+  local selection = M.selection()
+  if not selection then
+    -- Block Select mode is outside the ordinary typing-selection range helper;
+    -- keep its existing native arrow behavior instead of swallowing the key.
+    if fallback then vim.api.nvim_feedkeys(vim.keycode(fallback), 'n', false) end
+    return
+  end
+  local target = ending and { selection[3] + 1, selection[4] } or { selection[1] + 1, selection[2] }
+  escape()
+  vim.api.nvim_win_set_cursor(0, target)
+  if vim.bo.modifiable and not vim.bo.readonly
+    and (vim.bo.buftype == '' or vim.bo.buftype == 'prompt'
+      or vim.bo.filetype == 'jetvim-search' or vim.bo.filetype == 'jetvim-project-search') then
+    vim.cmd.startinsert()
+  end
+end
 function M.extend_selection()
   require('jetvim.selection').extend()
 end

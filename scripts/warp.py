@@ -16,6 +16,24 @@ import tty
 import uuid
 
 
+NATIVE_SEQUENCES = {
+    'native:shift-page-up': b'\x1b[5;2~',
+    'native:shift-page-down': b'\x1b[6;2~',
+    'native:shift-home': b'\x1b[1;2H',
+    'native:shift-end': b'\x1b[1;2F',
+}
+
+
+def key_sequences(bindings):
+    """Keep existing private relay IDs independent of supplemental native keys."""
+    return {item['id']: f'\x1b[{0xF0001 + index}u'.encode() for index, item in enumerate(bindings)}
+
+
+def shortcut_sequence(action, sequences):
+    """Only fixed native navigation IDs or registered editor actions are sent."""
+    return NATIVE_SEQUENCES.get(action) or sequences.get(action)
+
+
 def main():
     root = Path(os.environ['JETVIM_ROOT'])
     home = Path(os.environ.get('JETVIM_HOME', str(root / '.jetvim')))
@@ -36,7 +54,7 @@ def main():
     env = os.environ.copy()
     env['JETVIM_SESSION_TITLE'] = token
     bindings = json.loads((root / 'config/keymap.json').read_text())
-    sequences = {item['id']: f'\x1b[{0xF0001 + index}u'.encode() for index, item in enumerate(bindings)}
+    sequences = key_sequences(bindings)
     bridge = subprocess.Popen([str(binary), str(root / 'config/keymap.json'), token], stdout=subprocess.PIPE)
     master = slave = None
     editor = None
@@ -95,7 +113,7 @@ def main():
                     pending += data
                     while b'\n' in pending:
                         line, pending = pending.split(b'\n', 1)
-                        sequence = sequences.get(line.decode())
+                        sequence = shortcut_sequence(line.decode(), sequences)
                         if sequence:
                             os.write(master, sequence)
         return editor.returncode

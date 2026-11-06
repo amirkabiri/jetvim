@@ -200,6 +200,10 @@ function M.next_tab() cycle_editor(1) end
 function M.previous_tab() cycle_editor(-1) end
 function M.page_up() require('jetvim.paging').move(-1) end
 function M.page_down() require('jetvim.paging').move(1) end
+function M.select_page_up() require('jetvim.paging').select(-1) end
+function M.select_page_down() require('jetvim.paging').select(1) end
+function M.select_home() require('jetvim.paging').select_line_boundary(false) end
+function M.select_end() require('jetvim.paging').select_line_boundary(true) end
 function M.next_error() vim.diagnostic.jump({ count = 1, float = true }) end
 function M.previous_error() vim.diagnostic.jump({ count = -1, float = true }) end
 function M.error_info() vim.diagnostic.open_float() end

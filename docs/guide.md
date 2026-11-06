@@ -73,6 +73,11 @@ On macOS, Fn+↑ / Fn+↓ sends Page Up / Page Down. Jetvim pages by the visible
 editor text height minus two lines, and reaches the first/last line even when the
 remaining distance is less than one page. Paging preserves the preferred column
 and keeps typing mode active when invoked while editing.
+Add Shift to Fn+↑/↓ (Shift+PageUp/PageDown) to extend the selection by a page.
+The anchor stays fixed when repeating or reversing direction. Fn+Shift+←/→
+(Shift+Home/End) selects to the current line’s start/end. With a typing selection,
+plain Up/Left collapses to its start and Down/Right to its end; explicit Vim
+Visual mode continues to extend using ordinary arrows.
 
 The [full shortcut guide](shortcuts.md) lists every implemented binding.
 All provided navigation and editing bindings use the macOS JetBrains convention.
