@@ -65,6 +65,8 @@ def artifacts():
               'Escape clears the query before returning to the editor. Plain letter keys are search text.',
               'Left collapses a folder or selects its parent; Right expands it or enters its first child.',
               'The project root is selectable. Drag the sidebar divider to resize it.',
+              '⌘N or Insert in the project tree creates a file; a trailing / creates a directory.',
+              'Creation uses the selected directory or the selected file’s parent; ⌘N is tree-only.',
               'Ctrl+Option+Arrow resizes the focused pane by moving its shared divider in that direction.',
               'For a left sidebar, Right grows and Left shrinks; for a bottom pane, Up grows and Down shrinks.',
               'Resize steps are four columns or two rows; dimensions stop at ten columns or three rows.',
