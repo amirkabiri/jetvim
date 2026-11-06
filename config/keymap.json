@@ -644,5 +644,12 @@
     "shortcut": "⌃⌥↓",
     "key": "<C-M-Down>",
     "terminal": "ctrl+alt+down"
+  },
+  {
+    "id": "tree_new",
+    "label": "New File or Directory (Project Tree)",
+    "shortcut": "⌘N (Project Tree)",
+    "key": "<D-n>",
+    "terminal": "super+n"
   }
 ]

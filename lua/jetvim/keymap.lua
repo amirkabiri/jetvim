@@ -63,8 +63,8 @@ function M.setup(root)
     local relay = not binding.native_only and vim.fn.nr2char(0xF0000 + index) or nil
     if relay then vim.keymap.set({ 'n', 'i', 'x', 's' }, relay, invoke, opts) end
     if binding.fallback then vim.keymap.set('n', binding.fallback, invoke, opts) end
-    if binding.id == 'close' then
-      -- Editor-tab close must never reach a terminal application's input.
+    if binding.id == 'close' or binding.id == 'tree_new' then
+      -- Editor-tab close and tree-only creation never reach terminal input.
       -- A terminal has no editor tab of its own, so keep its focus/mode intact.
       vim.keymap.set('t', binding.key, '<Nop>', opts)
       if relay then vim.keymap.set('t', relay, '<Nop>', opts) end

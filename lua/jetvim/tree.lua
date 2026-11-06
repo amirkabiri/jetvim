@@ -339,7 +339,6 @@ function M.focus()
     else M.editor(); if vim.bo.modifiable then vim.cmd.startinsert() end end
   end)
   map('<S-Esc>', M.hide)
-  map('<D-n>', M.new_file)
   map('<Insert>', M.new_file)
   map('<F5>', function() M.render(); require('jetvim.vcs').refresh() end)
   vim.api.nvim_create_autocmd('BufLeave', { buffer = M.buf, callback = M.clear_search })
@@ -354,13 +353,40 @@ function M.focus()
   require('jetvim.vcs').refresh()
 end
 function M.new_file()
+  if not tree_window(vim.api.nvim_get_current_win()) then return end
   local e = M.rows[vim.api.nvim_win_get_cursor(0)[1]]
-  local dir = e and (e.directory and e.path or vim.fs.dirname(e.path)) or require('jetvim.project').root
+  local project = require('jetvim.project')
+  local dir = e and (e.directory and e.path or vim.fs.dirname(e.path)) or project.root
   require('jetvim.ui').input('New file (trailing / for directory)', function(name)
-    local path = require('jetvim.project').resolve(dir .. '/' .. name)
-    if not path then vim.notify('Path must stay inside the project', vim.log.levels.ERROR); return end
-    if name:sub(-1) == '/' then vim.fn.mkdir(path, 'p'); M.render()
-    else require('jetvim.project').open(path) end
+    if name:sub(1, 1) == '/' or name:find('[%z\r\n]') then
+      vim.notify('Enter a relative file or directory name', vim.log.levels.WARN); return
+    end
+    local path = project.resolve(dir .. '/' .. name)
+    if not path then vim.notify('Path must stay inside the project', vim.log.levels.WARN); return end
+    if vim.uv.fs_stat(path) then vim.notify('A file or directory already exists at that path', vim.log.levels.WARN); return end
+    local directory = name:sub(-1) == '/'
+    local ok, err = pcall(vim.fn.mkdir, directory and path or vim.fs.dirname(path), 'p')
+    if not ok then vim.notify('Cannot create directory: ' .. tostring(err), vim.log.levels.WARN); return end
+    if directory then
+      local created = vim.uv.fs_stat(path)
+      if not created or created.type ~= 'directory' then vim.notify('Cannot create directory', vim.log.levels.WARN); return end
+    end
+    if not directory then
+      local fd, failure = vim.uv.fs_open(path, 'wx', 420)
+      if not fd then vim.notify('Cannot create file: ' .. tostring(failure), vim.log.levels.WARN); return end
+      vim.uv.fs_close(fd)
+    end
+    local parent = vim.fs.dirname(path)
+    while parent and project.resolve(parent) do
+      M.expanded[parent] = true
+      if parent == project.root then break end
+      parent = vim.fs.dirname(parent)
+    end
+    M.clear_search(); M.render()
+    if directory then
+      for row, entry in pairs(M.rows) do if entry.path == path then select_row(row); break end end
+    else project.open(path) end
+    require('jetvim.vcs').refresh()
   end)
 end
 function M.reveal()

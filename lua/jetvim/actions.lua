@@ -13,6 +13,10 @@ local function lsp(method, callback)
   end
   callback()
 end
+function M.tree_new()
+  local tree = require('jetvim.tree')
+  if tree.is_tree_window(vim.api.nvim_get_current_win()) then tree.new_file() end
+end
 function M.files() ui.pick('Go to File', project.files(), function(path) project.open(path) end) end
 function M.palette()
   local items = {}
