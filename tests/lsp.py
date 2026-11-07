@@ -18,6 +18,8 @@ main_lines = ['import { greet } from "./definitions";', '', 'const message = gre
 (PROJECT / 'main.ts').write_text('\n'.join(main_lines) + '\n')
 SOCKET = STATE / f'lsp-{os.getpid()}.sock'
 checks = 0
+start_mode = os.environ.get('JETVIM_LSP_START_MODE', 'normal')
+assert start_mode in ('normal', 'insert'), 'JETVIM_LSP_START_MODE must be normal or insert'
 
 
 def lua(code):
@@ -41,7 +43,11 @@ def wait(code, label, seconds=20):
         if lua(code):
             return
         time.sleep(0.08)
-    raise AssertionError(label + '; see .jetvim/lsp-test.log and .jetvim/state/jetvim/lsp.log')
+    snapshot = lua('return {mode=vim.fn.mode(),cursor=vim.api.nvim_win_get_cursor(0),'
+                   'buffer=vim.api.nvim_buf_get_name(0),modified=vim.bo.modified,errmsg=vim.v.errmsg,'
+                   'messages=vim.fn.execute("messages"),requests=_G.JetvimLspRequests}')
+    raise AssertionError(label + '; state=' + json.dumps(snapshot, ensure_ascii=False)
+                         + '; see .jetvim/lsp-test.log and .jetvim/state/jetvim/lsp.log')
 
 
 log = (STATE / 'lsp-test.log').open('w')
@@ -73,9 +79,38 @@ try:
          'for _,response in pairs(result or {}) do if response.result and #response.result>0 then return true end end; return false',
          'TypeScript project did not become semantically ready')
     check(True, 'actual TypeScript semantic definition is ready')
-    lua(f'vim.api.nvim_win_set_cursor(0,{{3,{main_lines[2].index("greet") + 2}}}); return vim.api.nvim_input("i<D-b>")')
+    lua('''
+      _G.JetvimLspSource=vim.api.nvim_get_current_buf()
+      _G.JetvimLspRequests={}
+      local client=vim.lsp.get_clients({bufnr=0,method='textDocument/definition'})[1]
+      local request=client.request
+      client.request=function(self,method,params,callback,buf)
+        if method~='textDocument/definition' and method~='textDocument/references' then
+          return request(self,method,params,callback,buf)
+        end
+        local record={method=method,position=params.position,mode=vim.fn.mode(),cursor=vim.api.nvim_win_get_cursor(0)}
+        table.insert(JetvimLspRequests,record)
+        return request(self,method,params,function(err,result,ctx)
+          record.error,record.result=err,result
+          record.reply_mode,record.reply_cursor=vim.fn.mode(),vim.api.nvim_win_get_cursor(0)
+          callback(err,result,ctx)
+        end,buf)
+      end
+      return true
+    ''')
+    # Exercise either starting mode without assuming startup left us in Normal.
+    # A literal `i` sent while already inserting changes the symbol under test.
+    lua('vim.cmd.' + ('startinsert' if start_mode == 'insert' else 'stopinsert') + '(); return true')
+    wait('return vim.fn.mode() == ' + json.dumps('i' if start_mode == 'insert' else 'n'), 'requested initial mode')
+    lua(f'vim.api.nvim_win_set_cursor(0,{{3,{main_lines[2].index("greet") + 2}}}); vim.cmd.startinsert(); return true')
+    wait('return vim.fn.mode() == "i"', 'typing mode ready before Command-B')
+    check(lua('return vim.api.nvim_buf_get_lines(JetvimLspSource,0,-1,false)') == main_lines,
+          'entering typing mode never inserts a literal i into the source')
+    lua('return vim.api.nvim_input("<D-b>")')
     wait('return vim.fs.basename(vim.api.nvim_buf_get_name(0)) == "definitions.ts"', 'Command-B did not jump to definition')
     check(lua('return vim.api.nvim_win_get_cursor(0)[1]') == 1, 'Command-B lands on function declaration')
+    check(lua('return vim.api.nvim_buf_get_lines(JetvimLspSource,0,-1,false)') == main_lines,
+          'Command-B navigation leaves the source unchanged')
     # At the declaration Command-B becomes a usage list, including the call in main.ts.
     lua('return vim.api.nvim_input("<D-b>")')
     wait('return vim.bo.buftype == "prompt"', 'Command-B on declaration did not open usages picker')

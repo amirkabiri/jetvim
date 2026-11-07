@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory(prefix='nav-', dir=STATE) as directory:
     (project / 'other.lua').write_text('target()\n')
     editor = Editor(project, project / 'home/settings.lua', disabled=True, disable_lsp=True)
     def lua(code): return editor.lua(code)
-    def reset(encoding='utf-16', col=7):
+    def reset(encoding='utf-16', col=7, typing=True):
         editor.raw(b'\x1b[27u')
         lua('vim.bo.modified=false;vim.cmd.edit(vim.fn.fnameescape(' + json.dumps(str(project / 'main.lua')) + ')); '
             'vim.api.nvim_win_set_cursor(0,{1,' + str(col) + '}); '
@@ -30,7 +30,7 @@ with tempfile.TemporaryDirectory(prefix='nav-', dir=STATE) as directory:
             'vim.notify=function(message) nav_messages[#nav_messages+1]=message end; '
             'vim.lsp.util.show_document=function(location,encoding) nav_jumps[#nav_jumps+1]={location=location,encoding=encoding};return true end; '
             'require("jetvim.ui").pick=function(title,items,accept) nav_picks[#nav_picks+1]={title=title,items=items,accept=accept} end; return true')
-        editor.raw(b'i')
+        if typing: editor.raw(b'i')
     def press():
         editor.raw(b'\x1b[98;9u')
     def reply(index, locations=None, error=None):
@@ -54,6 +54,15 @@ with tempfile.TemporaryDirectory(prefix='nav-', dir=STATE) as directory:
         equal(lua('return nav_picks[1].items[1].label:match("other.lua:1:1")~=nil'),True,'usage displays file and position')
         lua('nav_picks[1].accept(nav_picks[1].items[1]);return true')
         equal(lua('return nav_jumps[1].location.uri'),(project/'other.lua').as_uri(),'usage selection navigates to chosen file')
+        for typing in (False, True):
+            reset(typing=typing)
+            before = lua('return vim.api.nvim_buf_get_lines(0,0,-1,false)')
+            press()
+            equal(lua('return nav_requests[1].params.position'), {'line':0,'character':5},
+                  'native CmdB uses the caret in ' + ('Insert' if typing else 'Normal') + ' mode')
+            reply(1, location('other.lua',0,6))
+            equal(lua('return #nav_jumps'),1,'native CmdB navigates from either starting mode')
+            equal(lua('return vim.api.nvim_buf_get_lines(0,0,-1,false)'),before,'CmdB never types a mode-switch character')
         for encoding, start, end, expected in [('utf-8',5,11,7),('utf-16',3,9,5),('utf-32',2,8,4)]:
             reset(encoding)
             press()
