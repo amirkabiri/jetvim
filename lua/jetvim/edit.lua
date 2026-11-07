@@ -116,6 +116,15 @@ function M.paste(text, kind)
     local reg = (vim.fn.has('clipboard') == 1 or vim.fn.executable('pbpaste') == 1) and '+' or '"'
     text, kind = vim.fn.getreg(reg, 1, true), vim.fn.getregtype(reg)
   end
+  if vim.bo.buftype == 'terminal' then
+    local job = vim.b.terminal_job_id
+    if not job or vim.fn.jobwait({ job }, 0)[1] ~= -1 then return end
+    local data = table.concat(text, '\n') .. (kind == 'V' and '\n' or '')
+    -- Native terminal paste honors the child's bracketed-paste mode. Sending
+    -- text through buffer edits or key mappings would corrupt its byte stream.
+    if data ~= '' then vim.api.nvim_paste(data, false, -1) end
+    return
+  end
   local selection = M.selection()
   if selection then
     escape()

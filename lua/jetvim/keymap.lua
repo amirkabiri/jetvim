@@ -127,6 +127,11 @@ function M.setup(root)
       vim.keymap.set('t', binding.key, '<C-w>', opts)
       vim.keymap.set('t', '<M-C-h>', '<C-w>', opts)
       if relay then vim.keymap.set('t', relay, '<C-w>', opts) end
+    elseif binding.id == 'paste' then
+      -- Paste bytes into the child PTY without leaving terminal input mode.
+      local paste = function() require('jetvim.edit').paste() end
+      vim.keymap.set('t', binding.key, paste, opts)
+      if relay then vim.keymap.set('t', relay, paste, opts) end
     elseif binding.id == 'terminal' or binding.id == 'editor' or binding.id == 'tree' or binding.id == 'git_changes' then
       -- Complete the terminal-to-normal transition before dispatching. Queuing
       -- feedkeys and a separate scheduled callback can race with window changes.

@@ -202,6 +202,8 @@ and Ctrl+Option+Arrow resizing are remembered across toggles and restarts. Layou
 metadata is created after a manual resize. Smaller terminals clamp restored
 panes to fit while retaining preferred sizes for a larger terminal. Editors use
 the remaining space.
+In the embedded terminal, ⌘V pastes clipboard text while keeping terminal input
+active; multiline paste honors the child shell’s bracketed-paste support.
 
 ## Git line markers
 
