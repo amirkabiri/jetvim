@@ -550,7 +550,10 @@ function M.reveal()
   local dir = vim.fs.dirname(path)
   M.expanded[root] = true
   while dir and dir ~= root and require('jetvim.project').resolve(dir) do
-    M.expanded[dir] = true; dir = vim.fs.dirname(dir)
+    M.expanded[dir] = true
+    local parent = vim.fs.dirname(dir)
+    if parent == dir then break end
+    dir = parent
   end
   M.focus(); M.clear_search(); M.render()
   for row, entry in pairs(M.rows) do
