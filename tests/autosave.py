@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Default-on autosave and persisted settings through real terminal input."""
 import fcntl
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -12,11 +13,15 @@ import tempfile
 import termios
 import threading
 import time
+import uuid
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / '.jetvim'
 STATE.mkdir(exist_ok=True)
 checks = 0
+_process_spec = importlib.util.spec_from_file_location('jetvim_fixture_processes', ROOT / 'tests/process_support.py')
+process_support = importlib.util.module_from_spec(_process_spec)
+_process_spec.loader.exec_module(process_support)
 
 
 def equal(actual, expected, label):
@@ -28,28 +33,68 @@ def equal(actual, expected, label):
 class Editor:
     def __init__(self, project, settings, disabled=False, disable_lsp=False):
         self.settings_path = settings
-        self.socket = STATE / f'auto-{os.getpid()}-{time.monotonic_ns() % 10000}.sock'
+        self.owner_token = 'JetvimTestOwner-' + uuid.uuid4().hex
+        self.pidfile = STATE / (self.owner_token + '.pid')
+        self.socket = STATE / f'auto-{os.getpid()}-{self.owner_token[-8:]}.sock'
+        self.process, self.reader, self.master = None, None, None
+        self.backend_pid = None
+        self._owned, self._closed = {}, False
+        self.stop, self.output = threading.Event(), bytearray()
         self.env = dict(os.environ, TERM='xterm-256color', JETVIM_DISABLE_VCS='1',
                         JETVIM_HOME=str(settings.parent), JETVIM_SETTINGS_FILE=str(settings))
         self.env.pop('JETVIM_DISABLE_AUTOSAVE', None)
         if disabled:
             self.env['JETVIM_DISABLE_AUTOSAVE'] = '1'
-        self.master, slave = pty.openpty()
-        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 35, 140, 0, 0))
-        self.stop, self.output = threading.Event(), bytearray()
-        command = [str(ROOT / 'jetvim'), str(project), 'main.lua', '--listen', str(self.socket)]
-        if disable_lsp:
-            # Hook-only fixtures must not launch unrelated installed JS/TS servers.
-            command.extend(['--cmd', 'lua vim.lsp.enable=function() end'])
-        self.process = subprocess.Popen(command, cwd=ROOT, env=self.env, stdin=slave, stdout=slave, stderr=slave)
-        os.close(slave)
-        self.reader = threading.Thread(target=self.drain, daemon=True)
-        self.reader.start()
-        deadline = time.monotonic() + 10
-        while not self.socket.exists():
-            assert self.process.poll() is None and time.monotonic() < deadline, 'editor did not start'
-            time.sleep(0.03)
-        self.wait('return vim.fs.basename(vim.api.nvim_buf_get_name(0)) == "main.lua"')
+        slave = None
+        try:
+            self.master, slave = pty.openpty()
+            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 35, 140, 0, 0))
+            # Nvim's TUI spawns a detached --embed backend. Record its PID before
+            # config/startup assertions can fail; terminating only the TUI is not
+            # a sufficient ownership/cleanup guarantee.
+            record_pid = ('lua _G.JetvimTestOwner=' + json.dumps(self.owner_token) + ';'
+                          'vim.fn.writefile({tostring(vim.fn.getpid())},' + json.dumps(str(self.pidfile)) + ')')
+            command = [str(ROOT / 'jetvim'), str(project), 'main.lua', '--listen', str(self.socket), '--cmd', record_pid]
+            if disable_lsp:
+                # Hook-only fixtures must not launch unrelated installed JS/TS servers.
+                command.extend(['--cmd', 'lua vim.lsp.enable=function() end'])
+            self.process = subprocess.Popen(command, cwd=ROOT, env=self.env, stdin=slave, stdout=slave, stderr=slave)
+            os.close(slave)
+            slave = None
+            self.reader = threading.Thread(target=self.drain, daemon=True)
+            self.reader.start()
+            deadline = time.monotonic() + 10
+            while not (self.socket.exists() and self.backend_pid in self._owned):
+                self._capture_owned()
+                assert self.process.poll() is None and time.monotonic() < deadline, 'editor did not start'
+                time.sleep(0.03)
+            self._capture_owned()
+            self.wait('return vim.fs.basename(vim.api.nvim_buf_get_name(0)) == "main.lua"')
+            self._capture_owned()
+        except BaseException:
+            self.close()
+            raise
+        finally:
+            if slave is not None:
+                os.close(slave)
+
+    def _capture_owned(self):
+        if not self.process or not self.pidfile.exists():
+            return
+        try:
+            backend = int(self.pidfile.read_text().strip())
+        except (OSError, ValueError):
+            return
+        self.backend_pid = backend
+        for pid in (self.process.pid, backend):
+            if pid not in self._owned:
+                try:
+                    record = process_support.identity(pid, self.owner_token)
+                except (OSError, subprocess.SubprocessError):
+                    continue
+                if record:
+                    self._owned[pid] = record
+                    process_support.register(record)
 
     def drain(self):
         while not self.stop.is_set():
@@ -69,10 +114,10 @@ class Editor:
                 if b'\x1b[6n' in data:
                     os.write(self.master, b'\x1b[1;1R')
 
-    def lua(self, code):
+    def lua(self, code, timeout=8):
         expr = "json_encode(luaeval('(function() " + code.replace("'", "''") + " end)()'))"
         result = subprocess.run([str(ROOT / 'jetvim'), '--server', str(self.socket), '--remote-expr', expr],
-                                cwd=ROOT, env=self.env, capture_output=True, text=True, timeout=8)
+                                cwd=ROOT, env=self.env, capture_output=True, text=True, timeout=timeout)
         assert result.returncode == 0, result.stderr
         return json.loads(result.stdout)
 
@@ -119,22 +164,40 @@ class Editor:
             self.wait('return vim.api.nvim_buf_get_name(0) == vim.uv.cwd() .. "/.idea/jetvim/settings.lua"')
 
     def close(self):
-        if self.process.poll() is None:
+        if self._closed:
+            return
+        self._closed = True
+        self._capture_owned()
+        # The listening backend can outlive its TUI: try RPC even after the
+        # frontend exits, and bound the request if a fixture is stuck in Lua.
+        if self.socket.exists():
             try:
-                self.raw(b'\x1b[27u')
-                self.lua('vim.cmd("qa!"); return true')
+                self.lua('vim.cmd("qa!"); return true', timeout=1)
             except Exception:
                 pass
+        if self.process and self.process.poll() is None:
             try:
-                self.process.wait(timeout=5)
+                self.process.wait(timeout=1)
             except subprocess.TimeoutExpired:
                 self.process.terminate()
-                self.process.wait(timeout=5)
+        survivors = process_support.stop_owned(self._owned.values())
+        if self.process:
+            try:
+                self.process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=1)
         self.stop.set()
-        self.reader.join(timeout=2)
-        os.close(self.master)
+        if self.reader:
+            self.reader.join(timeout=2)
+        if self.master is not None:
+            os.close(self.master)
+            self.master = None
         self.socket.unlink(missing_ok=True)
+        self.pidfile.unlink(missing_ok=True)
         (STATE / 'autosave-output.log').write_bytes(self.output)
+        if survivors:
+            raise RuntimeError('Fixture backend did not stop: ' + repr([record['pid'] for record in survivors]))
 
 
 with tempfile.TemporaryDirectory(prefix='autosave-', dir=STATE) as directory:
