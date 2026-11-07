@@ -106,6 +106,27 @@ function M.definition()
     if not current(not from_picker) then return end
     vim.lsp.util.show_document(item.location, item.encoding, { focus = true })
   end
+  local function open_usages(items)
+    -- Check the origin once: each deliberate jump changes the active buffer,
+    -- so the single-result cursor guard cannot be reapplied to later choices.
+    if not current(false) then return end
+    local opened = {}
+    for _, item in ipairs(items) do
+      local path = vim.uri_to_fname(item.location.uri)
+      local key = vim.uv.fs_realpath(path) or vim.fs.normalize(path)
+      if not opened[key] then
+        opened[key] = true
+        local ok, shown = pcall(vim.lsp.util.show_document, item.location, item.encoding, { focus = true })
+        if ok and shown then
+          -- LSP locations can have been preloaded as unlisted buffers. Make
+          -- chosen files visible in Jetvim's existing editor tab strip.
+          vim.bo[vim.api.nvim_get_current_buf()].buflisted = true
+        elseif not ok then
+          vim.notify('Cannot open usage: ' .. tostring(shown), vim.log.levels.WARN)
+        end
+      end
+    end
+  end
   request('textDocument/definition', function(responses)
     local definitions, errors = entries(responses)
     if #definitions == 0 then notify(errors[1] or 'No definition found'); return end
@@ -115,7 +136,8 @@ function M.definition()
       request('textDocument/references', function(replies)
         local usages, failures = entries(replies)
         if #usages == 0 then notify(failures[1] or 'No usages found'); return end
-        require('jetvim.ui').pick('Usages', usages, function(item) jump(item, true) end)
+        require('jetvim.ui').pick('Usages', usages, function(item) jump(item, true) end,
+          { accept_many = open_usages })
       end)
     elseif #definitions == 1 then jump(definitions[1])
     else require('jetvim.ui').pick('Definitions', definitions, function(item) jump(item, true) end) end

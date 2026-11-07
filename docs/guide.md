@@ -306,6 +306,7 @@ Basic editing, file navigation, project search, comments, undo, selection and th
 sidebar work without a server. Declaration, class/symbol search, completion,
 rename, usages, quick fixes and formatting need a compatible language server.
 Press `⌘B` on a reference to jump to its definition; on the definition, it opens a selectable usages list.
+In the Usages picker, ⌘A selects all filtered results; Enter opens one tab per file, and editing the query clears the selection.
 
 Edit [config/lsp.lua](../config/lsp.lua) to configure installed language servers.
 Examples for Go, Python and TypeScript are provided. Startup never downloads
