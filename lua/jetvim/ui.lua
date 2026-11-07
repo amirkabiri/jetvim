@@ -94,10 +94,10 @@ function M.pick(title, items, accept, options)
   for _, mode in ipairs({ 'i', 'n' }) do
     vim.keymap.set(mode, '<Esc>', close, { buffer = input, nowait = true })
     vim.keymap.set(mode, '<CR>', choose, { buffer = input })
-    vim.keymap.set(mode, '<Down>', function() selected = math.min(#filtered, selected + 1); draw() end, { buffer = input })
-    vim.keymap.set(mode, '<Up>', function() selected = math.max(1, selected - 1); draw() end, { buffer = input })
-    vim.keymap.set(mode, '<C-n>', function() selected = math.min(#filtered, selected + 1); draw() end, { buffer = input })
-    vim.keymap.set(mode, '<C-p>', function() selected = math.max(1, selected - 1); draw() end, { buffer = input })
+    vim.keymap.set(mode, '<Down>', function() all_selected = false; selected = math.min(#filtered, selected + 1); draw() end, { buffer = input })
+    vim.keymap.set(mode, '<Up>', function() all_selected = false; selected = math.max(1, selected - 1); draw() end, { buffer = input })
+    vim.keymap.set(mode, '<C-n>', function() all_selected = false; selected = math.min(#filtered, selected + 1); draw() end, { buffer = input })
+    vim.keymap.set(mode, '<C-p>', function() all_selected = false; selected = math.max(1, selected - 1); draw() end, { buffer = input })
     if options.accept_many then
       local function select_all()
         -- Draw first so text and Command-A arriving in one packet select the
