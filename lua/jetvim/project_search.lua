@@ -2,6 +2,11 @@
 local M = {}
 local ns = vim.api.nvim_create_namespace('JetvimProjectSearch')
 local limit = 500
+local lifecycle, pending_leave = 0, nil
+local function invalidate_resume()
+  lifecycle = lifecycle + 1
+  if pending_leave then pcall(vim.api.nvim_del_autocmd, pending_leave); pending_leave = nil end
+end
 function M.contains(scope, path)
   return scope == '/' or path == scope or path:sub(1, #scope + 1) == scope .. '/'
 end
@@ -154,18 +159,35 @@ end
 function M.close(after)
   local state = M.state
   if not state or state.closing then return end
-  if vim.fn.mode() == 'i' and vim.api.nvim_get_current_win() == state.promptwin then
-    vim.cmd.stopinsert()
-    vim.schedule(function() if alive(state) then M.close(after) end end)
-    return
-  end
+  invalidate_resume()
+  local serial = lifecycle
+  local leaving = vim.fn.mode() == 'i' and vim.api.nvim_get_current_win() == state.promptwin
+  local origin_buf = valid(state.origin) and vim.api.nvim_win_get_buf(state.origin)
+  local origin_tick = origin_buf and vim.api.nvim_buf_get_changedtick(origin_buf)
+  local origin_cursor = valid(state.origin) and vim.api.nvim_win_get_cursor(state.origin)
   state.closing, state.closed = true, true
   cancel(state); M.state = nil
+  local function resume()
+    if lifecycle ~= serial or M.state or not valid(state.origin)
+      or vim.api.nvim_get_current_win() ~= state.origin or vim.api.nvim_win_get_buf(state.origin) ~= origin_buf
+      or vim.api.nvim_buf_get_changedtick(origin_buf) ~= origin_tick then return end
+    if leaving then vim.api.nvim_win_set_cursor(state.origin, origin_cursor) end
+    if after then after()
+    elseif state.typing and vim.bo.buftype == '' then vim.cmd.startinsert() end
+  end
+  if leaving then
+    -- stopinsert completes at the input-loop boundary. Polling with schedule()
+    -- can starve that boundary forever, especially without an attached TUI.
+    vim.cmd.stopinsert()
+    pending_leave = vim.api.nvim_create_autocmd('InsertLeave', { once = true, callback = function()
+      pending_leave = nil
+      vim.schedule(resume)
+    end })
+  end
   for _, win in ipairs({ state.promptwin, state.listwin }) do if valid(win) then pcall(vim.api.nvim_win_close, win, true) end end
   for _, buf in ipairs({ state.input, state.results }) do if vim.api.nvim_buf_is_valid(buf) then pcall(vim.api.nvim_buf_delete, buf, { force = true }) end end
   if valid(state.origin) then vim.api.nvim_set_current_win(state.origin) end
-  if after then after()
-  elseif state.typing and valid(state.origin) and vim.api.nvim_get_current_win() == state.origin and vim.bo.buftype == '' then vim.cmd.startinsert() end
+  if not leaving then resume() end
 end
 function M.choose()
   local state = M.state
@@ -207,6 +229,8 @@ function M.open()
   local scope, label = selected_scope()
   local origin, typing = vim.api.nvim_get_current_win(), vim.bo.buftype == ''
   if M.state then M.close() end
+  local restarting = pending_leave ~= nil and vim.fn.mode() == 'i'
+  invalidate_resume()
   local state = { scope = scope, scope_label = label, origin = origin, typing = typing,
     generation = 0, items = {}, selected = 1, query = '', message = 'Type to search' }
   M.state = state
@@ -245,5 +269,14 @@ function M.open()
     vim.schedule(function() if alive(state) and (not valid(state.promptwin) or not valid(state.listwin)) then M.close() end end)
   end })
   M.geometry(); draw(state); vim.cmd.startinsert()
+  if restarting then
+    local serial = lifecycle
+    pending_leave = vim.api.nvim_create_autocmd('InsertLeave', { once = true, callback = function()
+      pending_leave = nil
+      vim.schedule(function()
+        if lifecycle == serial and alive(state) and vim.api.nvim_get_current_win() == state.promptwin then vim.cmd.startinsert() end
+      end)
+    end })
+  end
 end
 return M

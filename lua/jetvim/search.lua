@@ -2,6 +2,11 @@
 local M = { query = '', matches = {}, selected = 0 }
 local ns = vim.api.nvim_create_namespace('JetvimSearch')
 local label_ns = vim.api.nvim_create_namespace('JetvimSearchInput')
+local lifecycle, pending_leave = 0, nil
+local function invalidate_resume()
+  lifecycle = lifecycle + 1
+  if pending_leave then pcall(vim.api.nvim_del_autocmd, pending_leave); pending_leave = nil end
+end
 local function valid(win) return win and vim.api.nvim_win_is_valid(win) end
 local function source() return valid(M.owner) and vim.api.nvim_win_get_buf(M.owner) == M.source end
 local function clear()
@@ -116,17 +121,33 @@ function M.step(direction)
   reveal()
 end
 function M.close()
-  if M.closing then return end
+  if M.closing or not M.input and not valid(M.win) then return end
   local focus = valid(M.win) and vim.api.nvim_get_current_win() == M.win
-  if focus and vim.fn.mode() == 'i' then
-    local win = M.win
-    vim.cmd.stopinsert()
-    vim.schedule(function() if M.win == win then M.close() end end)
-    return
-  end
+  invalidate_resume()
+  local serial = lifecycle
+  local leaving = focus and vim.fn.mode() == 'i'
   M.closing = true
   local had_search = M.input ~= nil
   local owner, typing = M.owner, M.typing
+  local owner_buf = valid(owner) and vim.api.nvim_win_get_buf(owner)
+  local owner_tick = owner_buf and vim.api.nvim_buf_get_changedtick(owner_buf)
+  local owner_cursor = valid(owner) and vim.api.nvim_win_get_cursor(owner)
+  local function resume()
+    if lifecycle == serial and not M.win and focus and valid(owner)
+      and vim.api.nvim_get_current_win() == owner and vim.api.nvim_win_get_buf(owner) == owner_buf
+      and vim.api.nvim_buf_get_changedtick(owner_buf) == owner_tick
+      and typing and vim.bo.modifiable then
+      if leaving then vim.api.nvim_win_set_cursor(owner, owner_cursor) end
+      vim.cmd.startinsert()
+    end
+  end
+  if leaving then
+    vim.cmd.stopinsert()
+    pending_leave = vim.api.nvim_create_autocmd('InsertLeave', { once = true, callback = function()
+      pending_leave = nil
+      vim.schedule(resume)
+    end })
+  end
   local windows, buffers = { M.win, M.status_win }, { M.input, M.status_buf }
   M.win, M.status_win, M.input, M.status_buf = nil, nil, nil, nil
   for _, win in pairs(windows) do if valid(win) then pcall(vim.api.nvim_win_close, win, true) end end
@@ -138,8 +159,8 @@ function M.close()
   M.closing = false
   if focus and valid(owner) then
     vim.api.nvim_set_current_win(owner)
-    if typing and vim.bo.modifiable then vim.cmd.startinsert() end
   end
+  if not leaving then resume() end
 end
 function M.geometry()
   if not valid(M.win) or not source() then return end
@@ -152,6 +173,8 @@ end
 function M.open()
   if valid(M.win) then vim.api.nvim_set_current_win(M.win); vim.cmd.startinsert(); return end
   M.close()
+  local restarting = pending_leave ~= nil and vim.fn.mode() == 'i'
+  invalidate_resume()
   require('jetvim.tree').editor()
   if vim.bo.buftype ~= '' then return end
   M.owner, M.source = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
@@ -185,5 +208,14 @@ function M.open()
   M.geometry(); M.update()
   vim.api.nvim_win_set_cursor(M.win, { 1, #M.query })
   vim.cmd.startinsert({ bang = true })
+  if restarting then
+    local serial, win = lifecycle, M.win
+    pending_leave = vim.api.nvim_create_autocmd('InsertLeave', { once = true, callback = function()
+      pending_leave = nil
+      vim.schedule(function()
+        if lifecycle == serial and M.win == win and valid(win) and vim.api.nvim_get_current_win() == win then vim.cmd.startinsert({ bang = true }) end
+      end)
+    end })
+  end
 end
 return M
