@@ -17,7 +17,11 @@ function M.tree_new()
   local tree = require('jetvim.tree')
   if tree.is_tree_window(vim.api.nvim_get_current_win()) then tree.new_file() end
 end
-function M.files() ui.pick('Go to File', project.files(), function(path) project.open(path) end) end
+function M.files()
+  local paths = project.files()
+  local location = require('jetvim.file_location').new(paths)
+  ui.pick('Go to File', paths, location.open, { transform_query = location.query })
+end
 function M.palette()
   local items = {}
   for _, binding in ipairs(require('jetvim.keymap').bindings) do
@@ -27,13 +31,15 @@ function M.palette()
 end
 function M.everywhere()
   local items = {}
-  for _, path in ipairs(project.files()) do items[#items + 1] = { label = 'File    ' .. path, path = path } end
+  local paths = project.files()
+  local location = require('jetvim.file_location').new(paths)
+  for _, path in ipairs(paths) do items[#items + 1] = { label = 'File    ' .. path, path = path } end
   for _, binding in ipairs(require('jetvim.keymap').bindings) do
     items[#items + 1] = { label = 'Action  ' .. binding.label, action = binding.id }
   end
-  ui.pick('Search Everywhere · files and actions', items, function(item)
-    if item.path then project.open(item.path) else M[item.action]() end
-  end)
+  ui.pick('Search Everywhere · files and actions', items, function(item, query)
+    if item.path then location.open(item.path, query) else M[item.action]() end
+  end, { transform_query = location.query })
 end
 function M.recent()
   local items = {}

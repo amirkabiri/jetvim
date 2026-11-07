@@ -83,6 +83,8 @@ The [full shortcut guide](shortcuts.md) lists every implemented binding.
 All provided navigation and editing bindings use the macOS JetBrains convention.
 Jetvim-specific help uses ⌘?; Search Everywhere uses ⌘⇧P when a terminal cannot
 report Double Shift. The Warp bridge also recognizes Double Shift.
+Go to File and Search Everywhere accept pasted `path:line[:column]` references,
+including quoted paths; line and column numbers start at 1.
 
 Without any terminal setup, press Escape followed by:
 

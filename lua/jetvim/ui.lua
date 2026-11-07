@@ -41,7 +41,8 @@ function M.pick(title, items, accept, options)
       lookup[label] = lookup[label] or {}
       table.insert(lookup[label], i)
     end
-    local matches = query == '' and labels or vim.fn.matchfuzzy(labels, query)
+    local match_query = options.transform_query and options.transform_query(query) or query
+    local matches = match_query == '' and labels or vim.fn.matchfuzzy(labels, match_query)
     filtered = {}
     for _, label in ipairs(matches) do
       local indices = lookup[label]
@@ -117,15 +118,32 @@ function M.pick(title, items, accept, options)
     end
     if vim.api.nvim_win_is_valid(origin) then vim.api.nvim_set_current_win(origin) end
   end
+  local choosing = false
   local function choose()
-    -- A terminal may deliver pasted text and Enter in one input batch, before
-    -- TextChangedI fires. Resolve against the actual current prompt text.
-    draw()
-    local item = filtered[selected]
-    local many = all_selected and vim.list_slice(filtered) or nil
-    close()
-    if many and #many > 0 then vim.schedule(function() options.accept_many(many) end)
-    elseif item then vim.schedule(function() accept(item) end) end
+    if closed or choosing then return end
+    choosing = true
+    -- Native bracketed paste is delivered as an RPC event. An Enter in the
+    -- same terminal packet can run first; keep its prompt alive until pending
+    -- paste events have inserted their text, then resolve the actual query.
+    vim.schedule(function()
+      if closed then return end
+      draw()
+      local item = filtered[selected]
+      local many = all_selected and vim.list_slice(filtered) or nil
+      local query = last_query
+      close()
+      local function accepted()
+        if many and #many > 0 then options.accept_many(many)
+        elseif item then accept(item, query) end
+      end
+      -- stopinsert takes effect when the input loop resumes. Running an action
+      -- which starts Insert before that boundary would immediately leave it.
+      if vim.fn.mode():sub(1, 1) == 'i' then
+        vim.api.nvim_create_autocmd('InsertLeave', { once = true, callback = function() vim.schedule(accepted) end })
+      else
+        vim.schedule(accepted)
+      end
+    end)
   end
   vim.fn.prompt_setcallback(input, choose)
   for _, mode in ipairs({ 'i', 'n' }) do
