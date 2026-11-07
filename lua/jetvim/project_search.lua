@@ -27,6 +27,7 @@ local function draw(state)
   local height = vim.api.nvim_win_get_height(state.listwin)
   state.selected = math.max(1, math.min(state.selected, #state.items))
   local first, lines = math.max(1, state.selected - height + 1), {}
+  local from, to = math.min(state.anchor or state.selected, state.selected), math.max(state.anchor or state.selected, state.selected)
   for i = first, math.min(#state.items, first + height - 1) do
     local item = state.items[i]
     lines[#lines + 1] = (i == state.selected and ' › ' or '   ') .. item.label
@@ -35,9 +36,12 @@ local function draw(state)
   vim.api.nvim_buf_set_lines(state.results, 0, -1, false, lines)
   vim.api.nvim_buf_clear_namespace(state.results, ns, 0, -1)
   if #state.items > 0 then
-    vim.api.nvim_buf_set_extmark(state.results, ns, state.selected - first, 0, { line_hl_group = 'JetvimPickerSelected' })
+    for i = math.max(first, from), math.min(to, first + #lines - 1) do
+      vim.api.nvim_buf_set_extmark(state.results, ns, i - first, 0, { line_hl_group = 'JetvimPickerSelected' })
+    end
   end
   local status = state.busy and 'Searching…' or state.message or (#state.items .. (state.capped and '+' or '') .. ' results')
+  if state.anchor and #state.items > 0 then status = status .. ' · ' .. (to - from + 1) .. ' selected' end
   vim.api.nvim_win_set_config(state.listwin, { footer = ' ' .. display(status) .. ' · ↑↓ choose · Enter open · Esc close ', footer_pos = 'left' })
 end
 local function schedule_draw(state)
@@ -134,7 +138,7 @@ function M.change(immediate)
   local text = query(state)
   if text == state.query and not immediate then return end
   cancel(state)
-  state.query, state.items, state.selected, state.capped = text, {}, 1, false
+  state.query, state.items, state.selected, state.capped, state.anchor = text, {}, 1, false, nil
   state.message = text == '' and 'Type to search' or 'Waiting…'
   draw(state)
   if text == '' then return end
@@ -171,6 +175,24 @@ function M.choose()
   local item = state.items[state.selected]
   if item then M.close(function() require('jetvim.project').open(item.path, item.line, item.col) end) end
 end
+local function move(state, direction, extend, page, boundary)
+  if not alive(state) then return end
+  if query(state) ~= state.query then M.change(); return end
+  if #state.items == 0 then return end
+  local current = state.selected
+  if extend then
+    state.anchor = state.anchor or current
+  elseif state.anchor then
+    -- Plain arrows collapse a range before moving again, as editor selections do.
+    current = direction < 0 and math.min(state.anchor, current) or math.max(state.anchor, current)
+    state.anchor = nil
+    if not page and not boundary then state.selected = current; draw(state); return end
+  end
+  local step = page and vim.api.nvim_win_get_height(state.listwin) or 1
+  state.selected = boundary and (direction < 0 and 1 or #state.items)
+    or math.max(1, math.min(#state.items, current + direction * step))
+  draw(state)
+end
 function M.geometry()
   local state = M.state
   if not state or not valid(state.promptwin) or not valid(state.listwin) then return end
@@ -201,8 +223,20 @@ function M.open()
   for _, mode in ipairs({ 'i', 'n' }) do
     vim.keymap.set(mode, '<Esc>', function() M.close() end, { buffer = state.input, nowait = true })
     vim.keymap.set(mode, '<CR>', M.choose, { buffer = state.input })
-    vim.keymap.set(mode, '<Down>', function() state.selected = math.min(#state.items, state.selected + 1); draw(state) end, { buffer = state.input })
-    vim.keymap.set(mode, '<Up>', function() state.selected = math.max(1, state.selected - 1); draw(state) end, { buffer = state.input })
+    local function bind(key, direction, extend, page, boundary)
+      vim.keymap.set(mode, key, function() move(state, direction, extend, page, boundary) end, { buffer = state.input, silent = true })
+    end
+    bind('<Up>', -1); bind('<Down>', 1)
+    bind('<S-Up>', -1, true); bind('<S-Down>', 1, true)
+    bind('<PageUp>', -1, false, true); bind('<PageDown>', 1, false, true)
+    bind('<S-PageUp>', -1, true, true); bind('<S-PageDown>', 1, true, true)
+    bind('<S-Home>', -1, true, false, true); bind('<S-End>', 1, true, false, true)
+    bind('<D-S-Up>', -1, true, false, true); bind('<D-S-Down>', 1, true, false, true)
+    for index, binding in ipairs(require('jetvim.keymap').bindings or {}) do
+      if binding.id == 'select_file_start' or binding.id == 'select_file_end' then
+        bind(vim.fn.nr2char(0xF0000 + index), binding.id == 'select_file_start' and -1 or 1, true, false, true)
+      end
+    end
   end
   local group = vim.api.nvim_create_augroup('JetvimProjectSearch', { clear = true })
   vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChanged' }, { group = group, buffer = state.input, callback = function() M.change() end })
