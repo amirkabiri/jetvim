@@ -28,7 +28,9 @@ end
 function M.render(buf)
   buf = buf or vim.api.nvim_get_current_buf()
   local state = M.states[buf]
-  if not eligible(buf) or not state or state.tick ~= vim.api.nvim_buf_get_changedtick(buf) then clear(buf); return end
+  -- Fresh tool buffers have never owned a blame annotation to clear.
+  if not state then return end
+  if not eligible(buf) or state.tick ~= vim.api.nvim_buf_get_changedtick(buf) then clear(buf); return end
   local entries = {}
   if config().mode == 'all' then
     for line, text in pairs(state.lines or {}) do entries[#entries + 1] = { line = line, text = '  ' .. text } end

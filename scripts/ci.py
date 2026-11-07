@@ -12,7 +12,7 @@ _process_spec = importlib.util.spec_from_file_location('jetvim_fixture_processes
 process_support = importlib.util.module_from_spec(_process_spec)
 _process_spec.loader.exec_module(process_support)
 GROUPS = {
-    'core': ('integration', 'tui', 'launcher', 'process_lifecycle', 'sidebar', 'selection', 'tabs', 'appearance',
+    'core': ('integration', 'tui', 'launcher', 'process_lifecycle', 'sidebar', 'tree_navigation', 'selection', 'tabs', 'appearance',
              'disk', 'workspace', 'workspace_autosave', 'tree_create', 'tree_delete', 'tree_rename', 'tree_context', 'tree_reveal_lifecycle', 'project_search', 'project_search_selection', 'word_delete', 'paging', 'page_selection', 'definition_usages', 'usages_open_all', 'fn_bridge', 'mac_bridge', 'terminal_bridge', 'search', 'search_close_lifecycle', 'file_location', 'settings', 'settings_menu', 'hooks', 'oxlint', 'diagnostics_live', 'blame', 'blame_tui', 'terminal_layout', 'terminal_keys', 'terminal_paste', 'resize', 'layout', 'overview', 'vcs_cache', 'gutter_cache', 'autosave', 'git_layout', 'git_focus'),
     'git': ('git_changes', 'vcs', 'git_gutter', ('blame', '--real'), ('disk', '--git-restore')),
     'languages': ('lsp', 'go_lsp'),

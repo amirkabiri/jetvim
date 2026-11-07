@@ -1,4 +1,4 @@
-local M = { expanded = {}, rows = {}, query = '', matches = {} }
+local M = { expanded = {}, rows = {}, query = '', matches = {}, row_order = {}, row_index = {}, match_index = {} }
 local search_ns = vim.api.nvim_create_namespace('JetvimTreeSearch')
 local decoration_ns = vim.api.nvim_create_namespace('JetvimTreeDecorations')
 local function valid(win) return win and vim.api.nvim_win_is_valid(win) end
@@ -68,7 +68,7 @@ end
 function M.update_search(select_match)
   if not M.buf or not vim.api.nvim_buf_is_valid(M.buf) then return end
   vim.api.nvim_buf_clear_namespace(M.buf, search_ns, 0, -1)
-  M.matches = {}
+  M.matches, M.match_index = {}, {}
   if M.query ~= '' then
     for row = 2, vim.api.nvim_buf_line_count(M.buf) do
       local entry = M.rows[row]
@@ -77,6 +77,7 @@ function M.update_search(select_match)
         local result = vim.fn.matchfuzzypos({ vim.fn.tolower(name) }, vim.fn.tolower(M.query))
         if #result[1] > 0 then
           M.matches[#M.matches + 1] = row
+          M.match_index[row] = #M.matches
           for _, index in ipairs(result[2][1]) do
             local first = entry.column + vim.fn.byteidx(name, index)
             local last = entry.column + vim.fn.byteidx(name, index + 1)
@@ -96,7 +97,7 @@ function M.update_search(select_match)
   end
   if select_match and #M.matches > 0 and tree_window(M.win) then
     local current = vim.api.nvim_win_get_cursor(M.win)[1]
-    if not vim.tbl_contains(M.matches, current) then vim.api.nvim_win_set_cursor(M.win, { M.matches[1], 0 }) end
+    if not M.match_index[current] then vim.api.nvim_win_set_cursor(M.win, { M.matches[1], 0 }) end
   end
 end
 function M.type_search(text)
@@ -116,15 +117,11 @@ function M.move(direction)
   local row = vim.api.nvim_win_get_cursor(M.win)[1]
   if M.query ~= '' then
     if #M.matches == 0 then return end
-    local index
-    for i, match in ipairs(M.matches) do if match == row then index = i; break end end
+    local index = M.match_index[row]
     index = index and ((index - 1 + direction) % #M.matches + 1) or (direction == 1 and 1 or #M.matches)
     vim.api.nvim_win_set_cursor(M.win, { M.matches[index], 0 })
   else
-    local rows, index = {}, 1
-    for visible_row in pairs(M.rows) do rows[#rows + 1] = visible_row end
-    table.sort(rows)
-    for i, visible_row in ipairs(rows) do if visible_row == row then index = i; break end end
+    local rows, index = M.row_order, M.row_index[row] or 1
     if #rows > 0 then vim.api.nvim_win_set_cursor(M.win, { rows[math.max(1, math.min(#rows, index + direction))], 0 }) end
   end
 end
@@ -200,6 +197,8 @@ function M.render()
   local root_name = vim.fs.basename(root)
   local root_label = display_name(root_name)
   local lines = { '  Project', root_prefix .. root_label, '' }
+  -- Navigation reads these indexes; only structural renders rebuild them.
+  M.row_order, M.row_index = { 2 }, { [2] = 1 }
   M.rows = { [2] = { path = root, parent = nil, root = true, directory = true,
     name = root_name, label = root_label, column = #root_prefix } }
   local decorations = {
@@ -231,6 +230,8 @@ function M.render()
       local label = display_name(entry.name)
       lines[#lines + 1] = prefix .. label
       M.rows[#lines] = { path = path, parent = dir, directory = directory, name = entry.name, label = label, column = #prefix }
+      M.row_order[#M.row_order + 1] = #lines
+      M.row_index[#lines] = #M.row_order
       decorations[#decorations + 1] = { row = #lines - 1, first = #indent, last = #indent + #marker, group = 'JetvimTreeArrow' }
       decorations[#decorations + 1] = { row = #lines - 1, first = #indent + #marker, last = #prefix, group = icon.hl }
       local name_group = directory and 'JetvimTreeName' or theme.filename_group(vcs.status(path))
