@@ -1,6 +1,60 @@
-local M = { rows = {}, generation = 0, preview_generation = 0 }
+local M = { rows = {}, selected = {}, selected_count = 0, generation = 0, preview_generation = 0 }
 local highlight_ns = vim.api.nvim_create_namespace('JetvimGitHighlights')
+local selection_ns = vim.api.nvim_create_namespace('JetvimGitSelection')
 local function valid(win) return win and vim.api.nvim_win_is_valid(win) end
+local function selection_key(entry) return entry.section .. '\0' .. entry.path end
+function M.selected_entries()
+  if M.selection_repo ~= M.repo or next(M.selected) == nil then return {} end
+  local rows, entries = {}, {}
+  for row in pairs(M.rows) do rows[#rows + 1] = row end
+  table.sort(rows)
+  for _, row in ipairs(rows) do
+    local entry = M.rows[row]
+    if M.selected[selection_key(entry)] then entries[#entries + 1] = entry end
+  end
+  return entries
+end
+local function draw_selection()
+  local selected_rows = {}
+  if M.selection_repo == M.repo and next(M.selected) ~= nil then
+    for row, entry in pairs(M.rows) do
+      if M.selected[selection_key(entry)] then selected_rows[#selected_rows + 1] = row end
+    end
+  end
+  M.selected_count = #selected_rows
+  if not M.list_buf or not vim.api.nvim_buf_is_valid(M.list_buf) then return end
+  vim.api.nvim_buf_clear_namespace(M.list_buf, selection_ns, 0, -1)
+  if M.selected_count == 0 then return end
+  -- Change only the background so modified/added/deleted filename colors stay.
+  local selected = vim.api.nvim_get_hl(0, { name = 'JetvimPickerSelected', link = false })
+  vim.api.nvim_set_hl(0, 'JetvimGitSelected', { bg = selected.bg })
+  for _, row in ipairs(selected_rows) do
+    vim.api.nvim_buf_set_extmark(M.list_buf, selection_ns, row - 1, 0, {
+      line_hl_group = 'JetvimGitSelected', virt_text = { { ' ✓ ', 'JetvimPickerSelected' } },
+      virt_text_pos = 'overlay', hl_mode = 'combine',
+    })
+  end
+  vim.api.nvim_buf_set_extmark(M.list_buf, selection_ns, 1, 0, {
+    virt_text = { { ' ' .. M.selected_count .. ' changes selected · Enter opens focused file', 'JetvimToolTitle' } },
+    virt_text_pos = 'overlay',
+  })
+end
+function M.clear_selection()
+  M.selection_cursor = nil
+  if M.selected_count == 0 and next(M.selected) == nil then return end
+  M.selected, M.selected_count = {}, 0
+  if M.list_buf and vim.api.nvim_buf_is_valid(M.list_buf) then
+    vim.api.nvim_buf_clear_namespace(M.list_buf, selection_ns, 0, -1)
+  end
+end
+function M.select_all()
+  if not valid(M.list_win) or vim.api.nvim_get_current_win() ~= M.list_win
+    or vim.api.nvim_win_get_buf(M.list_win) ~= M.list_buf then return end
+  M.selected, M.selection_repo = {}, M.repo
+  for _, entry in pairs(M.rows) do M.selected[selection_key(entry)] = true end
+  M.selection_cursor = vim.api.nvim_win_get_cursor(M.list_win)
+  draw_selection()
+end
 function M.remember_size()
   -- Closing one vertical pane expands the survivor. Only a complete, identified
   -- pair represents the user's chosen list width and bottom-panel height.
@@ -28,7 +82,7 @@ local function command(cwd, args, callback)
   -- Porcelain -z paths are byte strings; text mode would rewrite CRLF in names.
   return vim.system(cmd, { timeout = 10000 }, function(result) vim.schedule(function() callback(result) end) end)
 end
-local function display(path) return path:gsub('\n', '↵'):gsub('\r', ''):gsub('\t', '  ') end
+local function display(path) return (path:gsub('\n', '↵'):gsub('\r', ''):gsub('\t', '  ')) end
 local function set_lines(buf, lines)
   if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
   vim.bo[buf].modifiable = true
@@ -36,6 +90,7 @@ local function set_lines(buf, lines)
   vim.bo[buf].modifiable = false
   vim.bo[buf].modified = false
   vim.api.nvim_buf_clear_namespace(buf, highlight_ns, 0, -1)
+  if buf == M.list_buf then vim.api.nvim_buf_clear_namespace(buf, selection_ns, 0, -1) end
   if #lines > 0 and #lines[1] > 0 then
     vim.api.nvim_buf_set_extmark(buf, highlight_ns, 0, 0, { end_col = #lines[1], hl_group = 'JetvimToolTitle' })
   end
@@ -99,6 +154,7 @@ function M.render(entries)
   local selected = valid(M.list_win) and M.rows[vim.api.nvim_win_get_cursor(M.list_win)[1]] or nil
   local lines = { ' GIT · Local Changes', ' Enter open · R refresh · Esc editor', '' }
   M.rows = {}
+  if M.selection_repo ~= M.repo then M.selected, M.selection_repo = {}, M.repo end
   for _, section in ipairs({ 'Conflicts', 'Staged Changes', 'Unstaged Changes', 'Untracked Files' }) do
     local group = {}
     for _, entry in ipairs(entries) do if entry.section == section then group[#group + 1] = entry end end
@@ -112,6 +168,11 @@ function M.render(entries)
     end
   end
   if #entries == 0 then lines[#lines + 1] = ' Working tree clean.' end
+  if next(M.selected) ~= nil then
+    local available = {}
+    for _, entry in pairs(M.rows) do available[selection_key(entry)] = true end
+    for key in pairs(M.selected) do if not available[key] then M.selected[key] = nil end end
+  end
   set_lines(M.list_buf, lines)
   for row, entry in pairs(M.rows) do
     local group = entry.status:find('D', 1, true) and 'JetvimGitDeleted'
@@ -132,6 +193,8 @@ function M.render(entries)
     end
   end
   if target and valid(M.list_win) then vim.api.nvim_win_set_cursor(M.list_win, { target, 0 }) end
+  draw_selection()
+  M.selection_cursor = M.selected_count > 0 and valid(M.list_win) and vim.api.nvim_win_get_cursor(M.list_win) or nil
   M.preview()
 end
 function M.refresh()
@@ -140,13 +203,14 @@ function M.refresh()
   M.preview_generation = M.preview_generation + 1
   local generation = M.generation
   if vim.fn.executable('git') ~= 1 then
-    M.rows = {}; set_lines(M.list_buf, { ' Git is not installed.' }); set_lines(M.diff_buf, { '' }); return
+    M.rows, M.repo = {}, nil; M.clear_selection()
+    set_lines(M.list_buf, { ' Git is not installed.' }); set_lines(M.diff_buf, { '' }); return
   end
   local project = require('jetvim.project').root
   command(project, { 'rev-parse', '--show-toplevel' }, function(root)
     if generation ~= M.generation or not valid(M.list_win) then return end
     if root.code ~= 0 then
-      M.rows = {}
+      M.rows, M.repo = {}, nil; M.clear_selection()
       set_lines(M.list_buf, { ' GIT · Local Changes', '', ' This folder is not in a Git repository.' })
       set_lines(M.diff_buf, { ' Open a project containing a Git repository to see its changes.' })
       return
@@ -155,7 +219,7 @@ function M.refresh()
     command(project, { 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', '.' }, function(result)
       if generation ~= M.generation or not valid(M.list_win) then return end
       if result.code ~= 0 then
-        M.rows = {}
+        M.rows = {}; M.clear_selection()
         set_lines(M.list_buf, { ' Git status failed.', display(result.stderr or '') })
         set_lines(M.diff_buf, { '' }); return
       end
@@ -164,6 +228,7 @@ function M.refresh()
   end)
 end
 function M.move(direction)
+  M.clear_selection()
   local current, rows = vim.api.nvim_win_get_cursor(M.list_win)[1], {}
   for row in pairs(M.rows) do rows[#rows + 1] = row end
   table.sort(rows)
@@ -184,10 +249,11 @@ function M.open_entry()
   require('jetvim.project').open(path)
 end
 function M.focus_diff()
-  if not valid(M.list_win) or not valid(M.diff_win)
+  if not valid(M.list_win)
     or vim.api.nvim_get_current_win() ~= M.list_win
-    or vim.api.nvim_win_get_buf(M.list_win) ~= M.list_buf
-    or vim.api.nvim_win_get_buf(M.diff_win) ~= M.diff_buf then return end
+    or vim.api.nvim_win_get_buf(M.list_win) ~= M.list_buf then return end
+  M.clear_selection()
+  if not valid(M.diff_win) or vim.api.nvim_win_get_buf(M.diff_win) ~= M.diff_buf then return end
   local entry = M.rows[vim.api.nvim_win_get_cursor(M.list_win)[1]]
   if not entry then return end
   -- Resolve the current row synchronously: CursorMoved may still be pending
@@ -202,6 +268,7 @@ function M.editor()
   if vim.bo.modifiable then vim.cmd.startinsert() end
 end
 function M.hide()
+  M.clear_selection()
   M.remember_size()
   require('jetvim.layout').begin()
   require('jetvim.layout').detach('git_height')
@@ -232,6 +299,7 @@ function M.toggle()
   if vim.bo.buftype == '' then M.editor_win = vim.api.nvim_get_current_win()
   else M.editor_win = require('jetvim.tree').editor_win end
   M.list_buf, M.diff_buf = vim.api.nvim_create_buf(false, true), vim.api.nvim_create_buf(false, true)
+  M.selected, M.selected_count, M.selection_cursor = {}, 0, nil
   for _, buf in ipairs({ M.list_buf, M.diff_buf }) do vim.bo[buf].bufhidden = 'wipe'; vim.bo[buf].swapfile = false end
   vim.bo[M.list_buf].filetype, vim.bo[M.diff_buf].filetype = 'jetvim-git', 'diff'
   M.restoring = true
@@ -256,6 +324,16 @@ function M.toggle()
   end
   map(M.list_buf, '<Down>', function() M.move(1) end)
   map(M.list_buf, '<Up>', function() M.move(-1) end)
+  map(M.list_buf, '<Left>', function() M.clear_selection(); vim.cmd.normal({ args = { 'h' }, bang = true }) end)
+  for index, binding in ipairs(require('jetvim.keymap').bindings or {}) do
+    if binding.id == 'select_all' then
+      local rhs = [[<C-\><C-n><Cmd>lua require('jetvim.git').select_all()<CR>]]
+      for _, key in ipairs({ binding.key, vim.fn.nr2char(0xF0000 + index) }) do
+        vim.keymap.set({ 'n', 'i', 'x', 's' }, key, rhs, { buffer = M.list_buf, silent = true, nowait = true })
+      end
+      break
+    end
+  end
   map(M.list_buf, '<CR>', M.open_entry)
   map(M.list_buf, '<Right>', M.focus_diff)
   map(M.list_buf, '<2-LeftMouse>', M.open_entry)
@@ -263,6 +341,9 @@ function M.toggle()
   map(M.diff_buf, '<S-Tab>', function() vim.api.nvim_set_current_win(M.list_win) end)
   vim.api.nvim_create_autocmd('CursorMoved', { buffer = M.list_buf, callback = function()
     if not valid(M.list_win) then return end
+    if M.selection_cursor and not vim.deep_equal(M.selection_cursor, vim.api.nvim_win_get_cursor(M.list_win)) then
+      M.clear_selection()
+    end
     local entry = M.rows[vim.api.nvim_win_get_cursor(M.list_win)[1]]
     if entry ~= M.preview_entry then M.preview() end
   end })

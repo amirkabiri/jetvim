@@ -22,7 +22,14 @@ function M.setup(root)
   end
   local runtime_home = vim.env.JETVIM_HOME or root .. '/.jetvim'
   vim.opt.undodir = runtime_home .. '/undo//'
-  vim.fn.mkdir(runtime_home .. '/undo', 'p')
+  local undo, previous_error = runtime_home .. '/undo', vim.v.errmsg
+  local made, mkdir_error = pcall(vim.fn.mkdir, undo, 'p')
+  -- Another starting session may create the directory between mkdir's check
+  -- and creation. Only an actual directory makes that failure harmless.
+  if vim.fn.isdirectory(undo) ~= 1 then
+    error(made and ('Jetvim cannot create undo directory: ' .. undo) or mkdir_error, 0)
+  end
+  if not made then vim.v.errmsg = previous_error end
   vim.cmd('filetype plugin indent on')
   vim.cmd('syntax enable')
   vim.cmd.colorscheme('habamax')

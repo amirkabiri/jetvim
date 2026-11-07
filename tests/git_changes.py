@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import pty
 import select
+import shutil
 import struct
 import subprocess
 import tempfile
@@ -44,6 +45,9 @@ def git(repo, *args, expected_codes=(0,)):
 
 class Editor:
     def __init__(self, project, file, pre_init=None):
+        self.home = Path(tempfile.mkdtemp(prefix='git-home-', dir=STATE))
+        self.env = dict(ENV, TERM='xterm-256color', JETVIM_HOME=str(self.home),
+                        JETVIM_SETTINGS_FILE=str(self.home / 'settings.lua'))
         self.socket = STATE / f'git-test-{os.getpid()}-{time.monotonic_ns() % 100000}.sock'
         self.log_path = self.socket.with_suffix('.log')
         self.log = self.log_path.open('w')
@@ -55,7 +59,7 @@ class Editor:
         if pre_init is not None:
             argv.extend(['--cmd', pre_init])
         self.process = subprocess.Popen(argv,
-                                        cwd=ROOT, env=dict(ENV, TERM='xterm-256color'), stdout=slave, stderr=slave, stdin=slave)
+                                        cwd=ROOT, env=self.env, stdout=slave, stderr=slave, stdin=slave)
         os.close(slave)
         self.reader = threading.Thread(target=self.drain, daemon=True)
         self.reader.start()
@@ -115,7 +119,7 @@ class Editor:
     def lua(self, code):
         expr = "json_encode(luaeval('(function() " + code.replace("'", "''") + " end)()'))"
         result = subprocess.run([str(ROOT / 'jetvim'), '--server', str(self.socket), '--remote-expr', expr],
-                                cwd=ROOT, env=ENV, capture_output=True, text=True, timeout=10)
+                                cwd=ROOT, env=self.env, capture_output=True, text=True, timeout=10)
         assert result.returncode == 0, result.stderr
         return json.loads(result.stdout)
 
@@ -156,6 +160,7 @@ class Editor:
         os.close(self.master)
         self.log.close()
         self.socket.unlink(missing_ok=True)
+        shutil.rmtree(self.home, ignore_errors=True)
 
 
 with tempfile.TemporaryDirectory(prefix='git changes ', dir=STATE) as folder:
