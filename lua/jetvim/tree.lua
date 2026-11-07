@@ -340,6 +340,9 @@ function M.focus()
   end)
   map('<S-Esc>', M.hide)
   map('<Insert>', M.new_file)
+  -- On Mac keyboards the key labelled Delete is Backspace. Its shared action
+  -- is contextual; forward Delete is an additional native tree-only alias.
+  map('<D-Del>', M.delete_entry)
   map('<F5>', function() M.render(); require('jetvim.vcs').refresh() end)
   vim.api.nvim_create_autocmd('BufLeave', { buffer = M.buf, callback = M.clear_search })
   vim.api.nvim_create_autocmd('WinEnter', { buffer = M.buf, callback = function() M.window_style(true) end })
@@ -351,6 +354,145 @@ function M.focus()
   require('jetvim.layout').finish()
   M.remember_width()
   require('jetvim.vcs').refresh()
+end
+local function within(path, root)
+  return root == '/' or path == root or path:sub(1, #root + 1) == root .. '/'
+end
+local function deletion_path(path, root)
+  if type(path) ~= 'string' or path:sub(1, 1) ~= '/' then return end
+  path = vim.fs.normalize(path)
+  if path == root or not within(path, root) then return end
+  local parent = vim.fs.dirname(path)
+  -- Resolve the parent, not the entry: a symlink itself may safely be unlinked
+  -- even when its target is outside the project.
+  if vim.uv.fs_realpath(root) ~= root or vim.uv.fs_realpath(parent) ~= parent then return end
+  return path
+end
+local function identity(a, b)
+  return a and b and a.dev == b.dev and a.ino == b.ino and a.type == b.type
+end
+local function deletion_nodes(path, root, nodes)
+  if not deletion_path(path, root) then error('Path must stay inside the project') end
+  local stat, err = vim.uv.fs_lstat(path)
+  if not stat then error(err or 'File is no longer available') end
+  if stat.type == 'directory' then
+    local scan, failure = vim.uv.fs_scandir(path)
+    if not scan then error(failure or 'Cannot read directory') end
+    while true do
+      local name = vim.uv.fs_scandir_next(scan)
+      if not name then break end
+      deletion_nodes(path .. '/' .. name, root, nodes)
+    end
+  end
+  nodes[#nodes + 1] = { path = path, stat = stat }
+end
+local function affected_buffers(path, directory)
+  local buffers = {}
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    local name = vim.api.nvim_buf_get_name(buf)
+    -- Do not resolve aliases: unlinking a symlink must not close its target.
+    if name == path or directory and within(name, path) then buffers[#buffers + 1] = buf end
+  end
+  return buffers
+end
+local function deletable_buffers(buffers)
+  local hooks = package.loaded['jetvim.hooks']
+  for _, buf in ipairs(buffers) do
+    if vim.bo[buf].modified then error('Save or discard unsaved changes before deleting') end
+    if vim.b[buf].jetvim_hook_running or hooks and hooks.states[buf] then
+      error('Wait for the file save hook to finish before deleting')
+    end
+  end
+end
+local function close_deleted_buffers(buffers)
+  local deleted, replacement = {}, nil
+  for _, buf in ipairs(buffers) do
+    if vim.api.nvim_buf_is_valid(buf) and not vim.uv.fs_lstat(vim.api.nvim_buf_get_name(buf)) then deleted[buf] = true end
+  end
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if not deleted[buf] and vim.bo[buf].buflisted and vim.bo[buf].buftype == '' then replacement = buf; break end
+  end
+  M.remember_width()
+  for buf in pairs(deleted) do
+    -- Autocommands can edit a buffer while another editor window is replaced.
+    -- Preserve such edits rather than force-discarding them after disk deletion.
+    if not vim.bo[buf].modified then
+      for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+        replacement = replacement or M.placeholder()
+        vim.api.nvim_win_set_buf(win, replacement)
+      end
+      if not vim.bo[buf].modified then vim.api.nvim_buf_delete(buf, { force = true }) end
+    end
+  end
+end
+function M.delete_entry()
+  if M.deleting or not tree_window(vim.api.nvim_get_current_win()) then return end
+  local origin, row = vim.api.nvim_get_current_win(), vim.api.nvim_win_get_cursor(0)[1]
+  local entry = M.rows[row]
+  if not entry or entry.root then return end
+  local root = require('jetvim.project').root
+  local path = deletion_path(entry.path, root)
+  if not path then vim.notify('Path must stay inside the project', vim.log.levels.WARN); return end
+  local held, buffers, nodes = {}, {}, {}
+  local function hold_buffers(values)
+    for _, buf in ipairs(values) do
+      if not held[buf] then
+        held[buf] = { closing = vim.b[buf].jetvim_closing }
+        vim.b[buf].jetvim_closing = true
+      end
+    end
+  end
+  M.deleting = true
+  local ok, err = pcall(function()
+    deletion_nodes(path, root, nodes)
+    local directory = nodes[#nodes].stat.type == 'directory'
+    buffers = affected_buffers(path, directory)
+    deletable_buffers(buffers)
+    hold_buffers(buffers)
+    local label = display_name(path:sub(root == '/' and 2 or #root + 2))
+    local prompt = 'Permanently delete ' .. (directory and 'folder ' or 'file ') .. label
+      .. (directory and ' and all its contents?' or '?') .. '\nThis cannot be undone.'
+    if vim.fn.confirm(prompt, '&Delete\n&Cancel', 2) ~= 1 then return end
+    if require('jetvim.project').root ~= root then error('Project changed; deletion cancelled') end
+    buffers = affected_buffers(path, directory)
+    deletable_buffers(buffers)
+    hold_buffers(buffers)
+    -- Nothing may have been replaced or modified while confirmation was open.
+    for _, node in ipairs(nodes) do
+      local current = deletion_path(node.path, root) and vim.uv.fs_lstat(node.path)
+      if not identity(current, node.stat) or current.size ~= node.stat.size
+        or not vim.deep_equal(current.mtime, node.stat.mtime)
+        or not vim.deep_equal(current.ctime, node.stat.ctime) then error('File changed; deletion cancelled') end
+    end
+    local failure
+    for _, node in ipairs(nodes) do
+      local current = deletion_path(node.path, root) and vim.uv.fs_lstat(node.path)
+      if not identity(current, node.stat) then failure = 'File changed during deletion'; break end
+      local removed, message
+      if current.type == 'directory' then removed, message = vim.uv.fs_rmdir(node.path)
+      else removed, message = vim.uv.fs_unlink(node.path) end
+      if not removed then failure = message or 'Cannot delete entry'; break end
+    end
+    close_deleted_buffers(buffers)
+    for expanded in pairs(M.expanded) do if within(expanded, path) then M.expanded[expanded] = nil end end
+    M.clear_search(); M.render()
+    if tree_window(origin) then
+      vim.api.nvim_set_current_win(origin)
+      local last = vim.api.nvim_buf_line_count(M.buf)
+      select_row(math.max(2, math.min(row, last)))
+    end
+    require('jetvim.vcs').refresh()
+    if failure then error(failure) end
+  end)
+  for buf, previous in pairs(held) do
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.b[buf].jetvim_closing = previous.closing
+      local autosave = package.loaded['jetvim.autosave']
+      if autosave then autosave.schedule(buf) end
+    end
+  end
+  M.deleting = false
+  if not ok then vim.notify('Cannot delete: ' .. tostring(err), vim.log.levels.WARN) end
 end
 function M.new_file()
   if not tree_window(vim.api.nvim_get_current_win()) then return end

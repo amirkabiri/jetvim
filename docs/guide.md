@@ -124,6 +124,10 @@ native terminal input or the Warp bridge. It acts only while the tree is focused
 Creation uses the selected folder or the selected file’s parent, creates the disk
 entry immediately, and never overwrites an existing path.
 Filenames are passed as data, so spaces and special characters work.
+**⌘Delete** (the Mac Backspace key) deletes the selected file/folder after a
+permanent-deletion confirmation. Native ⌘Forward Delete works too. Dirty files
+and running save hooks block deletion; symbolic links are unlinked without
+touching their targets. In the editor, ⌘Backspace still deletes a line.
 
 ## Resize panes with the keyboard
 

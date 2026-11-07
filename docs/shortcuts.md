@@ -111,6 +111,9 @@ Left collapses a folder or selects its parent; Right expands it or enters its fi
 The project root is selectable. Drag the sidebar divider to resize it.
 ⌘N or Insert in the project tree creates a file; a trailing / creates a directory.
 Creation uses the selected directory or the selected file’s parent; ⌘N is tree-only.
+⌘Delete (the Backspace key on Mac) in the tree confirms permanent file/folder deletion;
+native ⌘Forward Delete also works there. Save/discard dirty files and finish save hooks first.
+In an editor, ⌘Backspace continues to delete the current line.
 Ctrl+Option+Arrow resizes the focused pane by moving its shared divider in that direction.
 For a left sidebar, Right grows and Left shrinks; for a bottom pane, Up grows and Down shrinks.
 Resize steps are four columns or two rows; dimensions stop at ten columns or three rows.

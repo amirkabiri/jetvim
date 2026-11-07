@@ -278,7 +278,11 @@ function M.join() normal('J') end
 function M.split() edit.newline(true) end
 function M.newline() edit.newline(false) end
 function M.duplicate() edit.duplicate() end
-function M.delete_line() edit.delete_line() end
+function M.delete_line()
+  local tree = require('jetvim.tree')
+  if tree.is_tree_window(vim.api.nvim_get_current_win()) then tree.delete_entry()
+  else edit.delete_line() end
+end
 function M.move_up() edit.move_line(-1) end
 function M.move_down() edit.move_line(1) end
 function M.comment() edit.comment() end
