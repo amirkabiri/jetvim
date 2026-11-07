@@ -114,6 +114,8 @@ Creation uses the selected directory or the selected file’s parent; ⌘N is tr
 ⌘Delete (the Backspace key on Mac) in the tree confirms permanent file/folder deletion;
 native ⌘Forward Delete also works there. Save/discard dirty files and finish save hooks first.
 In an editor, ⌘Backspace continues to delete the current line.
+Shift+F6 in the tree renames the selected file/folder in place and keeps open edits.
+In an editor, Shift+F6 still renames a symbol through the language server.
 Ctrl+Option+Arrow resizes the focused pane by moving its shared divider in that direction.
 For a left sidebar, Right grows and Left shrinks; for a bottom pane, Up grows and Down shrinks.
 Resize steps are four columns or two rows; dimensions stop at ten columns or three rows.

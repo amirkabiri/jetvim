@@ -128,6 +128,10 @@ Filenames are passed as data, so spaces and special characters work.
 permanent-deletion confirmation. Native ⌘Forward Delete works too. Dirty files
 and running save hooks block deletion; symbolic links are unlinked without
 touching their targets. In the editor, ⌘Backspace still deletes a line.
+**Shift+F6** renames the selected tree file/folder in its current directory.
+Open files keep their edits and follow the new path; existing names are never overwritten.
+Resolve disk conflicts and finish active save hooks before renaming.
+In an editor, Shift+F6 continues to rename a code symbol through its language server.
 
 ## Resize panes with the keyboard
 
@@ -259,7 +263,8 @@ See [search behavior and limits](search.md).
 
 ## Settings and autosave
 
-Press **⌘,** and choose User settings or Project settings to edit Lua code.
+Press **⌘,** to choose Project settings, User settings, Appearance or LSP under separate headings.
+Appearance and LSP changes apply after restarting Jetvim.
 Defaults in `config/settings.lua` are overlaid by `~/.jetvim/settings.lua`, then
 `.idea/jetvim/settings.lua` in the selected project. Development checkouts use
 `.jetvim/settings.lua` for user settings. Project files are sparse overrides:

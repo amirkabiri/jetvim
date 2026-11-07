@@ -101,6 +101,8 @@ function M.setup(root)
       end
     end
     bind(binding.key)
+    -- Legacy terminal Shift-F6 is reported by Neovim as F18.
+    if binding.id == 'rename' then bind('<F18>') end
     for _, alias in ipairs(binding.aliases or {}) do
       bind(alias.key)
       for _, key in ipairs(alias.alternate_keys or {}) do

@@ -494,6 +494,7 @@ function M.delete_entry()
   M.deleting = false
   if not ok then vim.notify('Cannot delete: ' .. tostring(err), vim.log.levels.WARN) end
 end
+function M.rename_entry() require('jetvim.tree_rename').run(M) end
 function M.new_file()
   if not tree_window(vim.api.nvim_get_current_win()) then return end
   local e = M.rows[vim.api.nvim_win_get_cursor(0)[1]]

@@ -141,6 +141,13 @@ function M.leave(buf)
     M.save(buf, 'leave')
   end)
 end
+-- Carry the original observed version across a verified filesystem rename.
+function M.rebind(buf, previous)
+  if not previous or not vim.api.nvim_buf_is_valid(buf) then return end
+  local state = track(buf, false)
+  if not state then return end
+  state.expected, state.safe, state.error = previous.expected, previous.safe, previous.error
+end
 function M.setup()
   M.exiting = false
   local group = vim.api.nvim_create_augroup('JetvimAutosave', { clear = true })

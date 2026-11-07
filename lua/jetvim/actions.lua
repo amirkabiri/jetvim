@@ -114,6 +114,11 @@ local methods = {
   call_hierarchy = { 'textDocument/prepareCallHierarchy', vim.lsp.buf.incoming_calls },
 }
 for id, method in pairs(methods) do M[id] = function() lsp(method[1], method[2]) end end
+function M.rename()
+  local tree = require('jetvim.tree')
+  if tree.is_tree_window(vim.api.nvim_get_current_win()) then tree.rename_entry()
+  else lsp('textDocument/rename', vim.lsp.buf.rename) end
+end
 function M.imports()
   lsp('textDocument/codeAction', function()
     vim.lsp.buf.code_action({ context = { only = { 'source.organizeImports' }, diagnostics = {} }, apply = true })

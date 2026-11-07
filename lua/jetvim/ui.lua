@@ -47,23 +47,60 @@ function M.pick(title, items, accept, options)
       local indices = lookup[label]
       if #indices > 0 then filtered[#filtered + 1] = items[table.remove(indices, 1)] end
     end
+    if options.sections then
+      local ordered, included = {}, {}
+      for _, section in ipairs(options.sections) do
+        for index, item in ipairs(filtered) do
+          if type(item) == 'table' and item.section == section then
+            ordered[#ordered + 1], included[index] = item, true
+          end
+        end
+      end
+      for index, item in ipairs(filtered) do
+        if not included[index] then ordered[#ordered + 1] = item end
+      end
+      filtered = ordered
+    end
     selected = math.max(1, math.min(selected, #filtered))
-    local lines = {}
+    local lines, highlights = {}, {}
     local first = math.max(1, selected - height + 1)
-    for i = first, math.min(#filtered, first + height - 1) do
-      local item = filtered[i]
-      local prefix = all_selected and ((i == selected and '›' or ' ') .. '✓ ')
-        or (i == selected and ' › ' or '   ')
-      lines[#lines + 1] = prefix .. (type(item) == 'string' and item or item.label)
+    local function item_line(item, index)
+      local prefix = all_selected and ((index == selected and '›' or ' ') .. '✓ ')
+        or (index == selected and ' › ' or '   ')
+      return prefix .. (type(item) == 'string' and item or item.label)
+    end
+    if options.sections then
+      -- Headings are display rows, never members of the selectable result list.
+      local rendered, rows, groups, previous_section = {}, {}, {}, nil
+      for index, item in ipairs(filtered) do
+        local section = type(item) == 'table' and item.section or nil
+        if section and section ~= previous_section then
+          rendered[#rendered + 1] = ' ──── ' .. section .. ' ────'
+          groups[#rendered] = 'Comment'
+        end
+        previous_section = section
+        rendered[#rendered + 1], rows[index] = item_line(item, index), #rendered + 1
+      end
+      first = math.max(1, (rows[selected] or 1) - height + 1)
+      for row = first, math.min(#rendered, first + height - 1) do
+        lines[#lines + 1] = rendered[row]
+        if groups[row] then highlights[#lines - 1] = groups[row] end
+      end
+      for index, row in ipairs(rows) do
+        if (all_selected or index == selected) and row >= first and row < first + height then
+          highlights[row - first] = 'JetvimPickerSelected'
+        end
+      end
+    else
+      for i = first, math.min(#filtered, first + height - 1) do
+        lines[#lines + 1] = item_line(filtered[i], i)
+        if all_selected or i == selected then highlights[i - first] = 'JetvimPickerSelected' end
+      end
     end
     vim.api.nvim_buf_set_lines(results, 0, -1, false, #lines > 0 and lines or { '   No matches' })
     vim.api.nvim_buf_clear_namespace(results, picker_ns, 0, -1)
-    if #filtered > 0 then
-      for i = first, math.min(#filtered, first + height - 1) do
-        if all_selected or i == selected then
-          vim.api.nvim_buf_set_extmark(results, picker_ns, i - first, 0, { line_hl_group = 'JetvimPickerSelected' })
-        end
-      end
+    for row, group in pairs(highlights) do
+      vim.api.nvim_buf_set_extmark(results, picker_ns, row, 0, { line_hl_group = group })
     end
     if options.accept_many then
       local footer = all_selected and (#filtered .. ' selected · Enter open files · edit query clears selection · Esc cancel')

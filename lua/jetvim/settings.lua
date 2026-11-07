@@ -182,10 +182,12 @@ function M.open_project()
   return true
 end
 function M.open()
-  vim.ui.select({ 'User settings', 'Project settings' }, { prompt = 'Settings scope' }, function(scope)
-    if scope == 'User settings' then M.open_user()
-    elseif scope == 'Project settings' then M.open_project() end
-  end)
+  require('jetvim.ui').pick('Settings', {
+    { label = 'Project settings', section = 'Project', open = M.open_project },
+    { label = 'User settings', section = 'User', open = M.open_user },
+    { label = 'Appearance', section = 'User', open = function() require('jetvim.project').open_tool('config/appearance.lua') end },
+    { label = 'LSP', section = 'User', open = function() require('jetvim.project').open_tool('config/lsp.lua') end },
+  }, function(item) item.open() end, { sections = { 'Project', 'User' } })
 end
 function M.setup(root)
   M.defaults_path = root .. '/config/settings.lua'

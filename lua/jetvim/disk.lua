@@ -137,6 +137,14 @@ function M.schedule()
   M.pending = true
   vim.schedule(function() M.pending = false; M.scan() end)
 end
+-- Carry the original observed version across a verified filesystem rename.
+function M.rebind(buf, previous)
+  if not previous or not vim.api.nvim_buf_is_valid(buf) then return end
+  track(buf)
+  local state = M.states[buf]
+  if not state then return end
+  state.expected, state.notified = previous.expected, previous.notified
+end
 function M.setup()
   M.stopping = false
   local group = vim.api.nvim_create_augroup('JetvimDiskChanges', { clear = true })
