@@ -9,13 +9,21 @@ local ok, err = pcall(function()
   vim.cmd.write()
   require('jetvim.actions').help()
   assert(vim.api.nvim_buf_get_name(0) == vim.env.JETVIM_ROOT .. '/docs/shortcuts.md', 'Help must use installation')
-  local select = vim.ui.select
-  vim.ui.select = function(scopes, options, callback)
-    assert(vim.deep_equal(scopes, { 'User settings', 'Project settings' }), 'Settings must offer both Lua scopes')
-    callback(scopes[1])
+  local ui = require('jetvim.ui')
+  local pick = ui.pick
+  ui.pick = function(title, items, callback, options)
+    local labels = {}
+    for _, item in ipairs(items) do labels[#labels + 1] = item.label end
+    assert(title == 'Settings', 'Settings action must open its chooser')
+    assert(vim.deep_equal(labels, { 'Project settings', 'User settings', 'Appearance', 'LSP' }), 'Settings must offer project-first configuration files')
+    assert(vim.deep_equal(options.sections, { 'Project', 'User' }), 'Settings must preserve project/user group order')
+    for _, item in ipairs(items) do
+      if item.label == 'User settings' then callback(item); return end
+    end
+    error('User settings choice is missing')
   end
   require('jetvim.actions').settings()
-  vim.ui.select = select
+  ui.pick = pick
   assert(vim.api.nvim_buf_get_name(0) == vim.env.JETVIM_HOME .. '/settings.lua', 'User settings must use runtime home')
   assert(require('jetvim.settings').allow_path(vim.api.nvim_buf_get_name(0)), 'User configuration writes must be allowed')
   assert(vim.deep_equal(dofile(vim.env.JETVIM_HOME .. '/settings.lua'), dofile(vim.env.JETVIM_ROOT .. '/config/settings.lua')), 'Fresh user settings must copy current defaults')

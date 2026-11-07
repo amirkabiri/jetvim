@@ -422,7 +422,15 @@
     "label": "Select File in Project",
     "shortcut": "⌥F1",
     "key": "<M-F1>",
-    "terminal": "alt+f1"
+    "terminal": "alt+f1",
+    "aliases": [
+      {
+        "label": "Reveal File and Path Menu",
+        "shortcut": "⌘⌥F1",
+        "key": "<D-M-F1>",
+        "terminal": "super+alt+f1"
+      }
+    ]
   },
   {
     "id": "structure",

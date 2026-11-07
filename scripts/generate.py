@@ -65,6 +65,7 @@ def artifacts():
               'Escape clears the query before returning to the editor. Plain letter keys are search text.',
               'Left collapses a folder or selects its parent; Right expands it or enters its first child.',
               'The project root is selectable. Drag the sidebar divider to resize it.',
+              '⌘⌥F1 (or ⌥F1) reveals the file and opens Copy Relative Path / Copy Absolute Path; Escape closes the menu.',
               '⌘N or Insert in the project tree creates a file; a trailing / creates a directory.',
               'Creation uses the selected directory or the selected file’s parent; ⌘N is tree-only.',
               '⌘Delete (the Backspace key on Mac) in the tree confirms permanent file/folder deletion;',

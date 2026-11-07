@@ -98,6 +98,7 @@ then Space followed by the displayed key. `Space Space` searches files and actio
 | New File or Directory (Project Tree) | ⌘N (Project Tree) | — | `[983126u` |
 | Next Editor | ⌘⇧] | Space ] | `[983088u` |
 | Previous Editor | ⌘⇧[ | Space [ | `[983089u` |
+| Reveal File and Path Menu | ⌘⌥F1 | — | `[983095u` |
 
 Double Shift is available with the optional Warp bridge. Else use ⌘⇧P or Space Space.
 Search Everywhere currently searches project files and actions.
@@ -109,6 +110,7 @@ Project sidebar: type to search visible entries; arrows move through matches, Ba
 Escape clears the query before returning to the editor. Plain letter keys are search text.
 Left collapses a folder or selects its parent; Right expands it or enters its first child.
 The project root is selectable. Drag the sidebar divider to resize it.
+⌘⌥F1 (or ⌥F1) reveals the file and opens Copy Relative Path / Copy Absolute Path; Escape closes the menu.
 ⌘N or Insert in the project tree creates a file; a trailing / creates a directory.
 Creation uses the selected directory or the selected file’s parent; ⌘N is tree-only.
 ⌘Delete (the Backspace key on Mac) in the tree confirms permanent file/folder deletion;

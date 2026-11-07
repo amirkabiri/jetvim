@@ -309,7 +309,7 @@ function M.paste_history()
 end
 function M.tree() require('jetvim.tree').toggle() end
 function M.git_changes() require('jetvim.git').toggle() end
-function M.reveal() require('jetvim.tree').reveal() end
+function M.reveal() require('jetvim.tree_context').reveal() end
 function M.hide_tools() require('jetvim.tree').hide() end
 function M.editor()
   local tree = require('jetvim.tree')

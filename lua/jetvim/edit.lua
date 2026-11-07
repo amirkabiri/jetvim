@@ -92,6 +92,9 @@ local function clipboard(text, kind)
   table.insert(M.history, 1, { text = vim.deepcopy(text), kind = kind })
   if #M.history > 30 then table.remove(M.history) end
 end
+function M.copy_text(text)
+  clipboard(vim.split(text, '\n', { plain = true }), 'v')
+end
 function M.copy(cut)
   local selection = M.selection()
   if selection then

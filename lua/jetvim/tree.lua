@@ -533,15 +533,28 @@ function M.new_file()
   end)
 end
 function M.reveal()
-  local path = vim.api.nvim_buf_get_name(0)
-  local dir = vim.fs.dirname(path)
+  local path
+  if tree_window(vim.api.nvim_get_current_win()) then
+    local entry = M.rows[vim.api.nvim_win_get_cursor(0)[1]]
+    path = entry and entry.path
+  else path = vim.api.nvim_buf_get_name(0) end
   local root = require('jetvim.project').root
+  if not path or path == '' then
+    vim.notify('Current buffer has no project file', vim.log.levels.WARN); return
+  end
+  path = vim.fs.normalize(path)
+  if not within(path, root) or (path ~= root and vim.uv.fs_realpath(vim.fs.dirname(path)) ~= vim.fs.dirname(path)) then
+    vim.notify('Current file is outside the project tree', vim.log.levels.WARN); return
+  end
+  if not vim.uv.fs_lstat(path) then vim.notify('File is no longer available', vim.log.levels.WARN); return end
+  local dir = vim.fs.dirname(path)
+  M.expanded[root] = true
   while dir and dir ~= root and require('jetvim.project').resolve(dir) do
     M.expanded[dir] = true; dir = vim.fs.dirname(dir)
   end
-  M.focus(); M.render()
+  M.focus(); M.clear_search(); M.render()
   for row, entry in pairs(M.rows) do
-    if entry.path == path then vim.api.nvim_win_set_cursor(M.win, { row, 0 }); break end
+    if entry.path == path then vim.api.nvim_win_set_cursor(M.win, { row, 0 }); return entry end
   end
 end
 -- Non-ASCII text is not a Vim command. Consume it only in this sidebar; the

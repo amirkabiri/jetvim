@@ -133,6 +133,9 @@ Open files keep their edits and follow the new path; existing names are never ov
 Resolve disk conflicts and finish active save hooks before renaming.
 In an editor, Shift+F6 continues to rename a code symbol through its language server.
 
+**⌘⌥F1** (or ⌥F1) reveals the current file and opens its path menu.
+Choose Copy Relative Path or Copy Absolute Path; Escape closes the menu and keeps tree focus.
+
 ## Resize panes with the keyboard
 
 Use **Ctrl+Option+←/→/↑/↓** to move a shared divider toward the requested

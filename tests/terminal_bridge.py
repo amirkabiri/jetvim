@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Safe compiled terminal focus guards; never creates a keyboard event tap."""
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -31,8 +32,10 @@ class TerminalBridge(unittest.TestCase):
                 self.assertEqual(result.stderr, '')
 
     def test_existing_routing_checks_work_for_both_targets(self):
+        bindings = json.loads((ROOT / 'config/keymap.json').read_text())
+        count = sum(1 + len(item.get('aliases', [])) for item in bindings)
         for target in ('warp', 'terminal'):
-            for flag, marker in (('--check-keymap', 'KEYMAP OK: 88 physical shortcuts'),
+            for flag, marker in (('--check-keymap', f'KEYMAP OK: {count} physical shortcuts'),
                                  ('--check-fn-keys', 'FN ROUTING OK: 57 cases')):
                 with self.subTest(target=target, flag=flag):
                     result = self.run_helper(flag, target)

@@ -103,6 +103,8 @@ function M.setup(root)
     bind(binding.key)
     -- Legacy terminal Shift-F6 is reported by Neovim as F18.
     if binding.id == 'rename' then bind('<F18>') end
+    -- Legacy CSI 1;3P (Alt-F1) is reported as F49 by Neovim.
+    if binding.id == 'reveal' then bind('<F49>') end
     for _, alias in ipairs(binding.aliases or {}) do
       bind(alias.key)
       for _, key in ipairs(alias.alternate_keys or {}) do
