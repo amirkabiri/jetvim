@@ -194,8 +194,27 @@ function M.choose()
   if not state then return end
   if query(state) ~= state.query then M.change(true); return end
   if state.timer or state.busy then return end
-  local item = state.items[state.selected]
-  if item then M.close(function() require('jetvim.project').open(item.path, item.line, item.col) end) end
+  local first, last = math.min(state.anchor or state.selected, state.selected), math.max(state.anchor or state.selected, state.selected)
+  local chosen = vim.list_slice(state.items, first, last)
+  if #chosen == 0 then return end
+  local root, scope = require('jetvim.project').root, state.scope
+  M.close(function()
+    local project, opened, any_opened = require('jetvim.project'), {}, false
+    for _, item in ipairs(chosen) do
+      -- Results may have disappeared or become symlinks while the modal was
+      -- open. Validate again for every file, without reopening missing paths.
+      if project.root ~= root or project.resolve(scope) ~= scope then return end
+      local path = project.resolve(item.path)
+      local stat = path and vim.uv.fs_stat(path)
+      if path and M.contains(scope, path) and stat and stat.type == 'file' and not opened[path] then
+        opened[path] = true
+        local ok, err = pcall(project.open, path, item.line, item.col)
+        if ok then any_opened = true
+        else vim.notify('Cannot open search result: ' .. tostring(err), vim.log.levels.WARN) end
+      end
+    end
+    if not any_opened and state.typing and vim.bo.buftype == '' then vim.cmd.startinsert() end
+  end)
 end
 local function move(state, direction, extend, page, boundary)
   if not alive(state) then return end

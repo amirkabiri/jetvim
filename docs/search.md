@@ -20,8 +20,9 @@ within the selected folder, or a selected file's parent; selecting the root
 searches the whole project. From the editor it searches the whole project.
 The modal displays its scope above the input.
 
-Type literal text to search after a 200 ms pause. Up/Down select results; Enter
-opens the selected file at its matching line; Escape cancels and restores focus.
+Type literal text to search after a 200 ms pause. Up/Down choose results;
+Shift+Up/Down or Shift+PageUp/PageDown selects a range. Enter opens each selected
+file once at its first selected match; Escape cancels and restores focus.
 Changing the query cancels the previous search. Errors appear inside the modal.
 The input opens even without ripgrep; searching requires `rg`.
 

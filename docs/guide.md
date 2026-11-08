@@ -269,7 +269,8 @@ indicated by `+`. **⌘⇧F** opens a focused Find in Files modal. In the tree i
 searches the selected folder or file’s parent; selecting the root searches the
 whole project. The modal displays its scope and searches literal text as you type.
 Shift+↑/↓ selects a result range; Shift+PageUp/PageDown (Fn+Shift+↑/↓ on macOS)
-extends it by a page. Plain arrows collapse the range; Enter opens the active match.
+extends it by a page. Plain arrows collapse the range; Enter opens each selected
+file once at its first selected match.
 See [search behavior and limits](search.md).
 
 ## Settings and autosave
