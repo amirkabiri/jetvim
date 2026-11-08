@@ -1,4 +1,4 @@
--- In-file regex search: one row over the active editor, never a layout split.
+-- In-file text/regex search: one row over the active editor, never a layout split.
 local M = { query = '', matches = {}, selected = 0 }
 local ns = vim.api.nvim_create_namespace('JetvimSearch')
 local label_ns = vim.api.nvim_create_namespace('JetvimSearchInput')
@@ -13,7 +13,7 @@ local function clear()
   if M.source and vim.api.nvim_buf_is_valid(M.source) then vim.api.nvim_buf_clear_namespace(M.source, ns, 0, -1) end
 end
 function M.pattern(query)
-  local expression, flags = query, ''
+  local expression, flags, regex = query, '', false
   if query:sub(1, 1) == '/' then
     local ending
     for i = #query, 2, -1 do
@@ -24,19 +24,21 @@ function M.pattern(query)
       end
     end
     if ending then
+      regex = true
       expression, flags = query:sub(2, ending - 1), query:sub(ending + 1)
       if flags ~= '' and flags ~= 'i' then return nil, 'Invalid regex flag (use i)' end
       expression = expression:gsub('\\/', '/')
     end
   end
-  local pattern = (flags == 'i' and [[\c\v]] or [[\C\v]]) .. expression
+  local pattern = regex and ((flags == 'i' and [[\c\v]] or [[\C\v]]) .. expression)
+    or ([[\c\V]] .. query:gsub('\\', '\\\\'))
   local ok, err = pcall(vim.regex, pattern)
   if not ok then return nil, 'Invalid regex: ' .. tostring(err):gsub('[\r\n]', ' ') end
   return pattern
 end
 local function status()
   if not M.status_buf or not vim.api.nvim_buf_is_valid(M.status_buf) then return end
-  local text = M.error or (M.query == '' and 'Regex · Enter next' or
+  local text = M.error or (M.query == '' and 'Text · /…/ regex' or
     (#M.matches == 0 and 'No matches' or string.format('%d/%d%s · Enter next', M.selected, #M.matches, M.limited and '+' or '')))
   vim.api.nvim_buf_set_lines(M.status_buf, 0, -1, false, { ' ' .. text })
 end

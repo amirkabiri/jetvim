@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise inline regex search and project search through native/relay PTY keys."""
+"""Exercise literal/regex inline search and project search through PTY keys."""
 import fcntl
 import json
 import os
@@ -94,15 +94,15 @@ with tempfile.TemporaryDirectory(prefix='search-project-', dir=STATE) as directo
         equal(lua('local s=require("jetvim.search"); local c=vim.api.nvim_win_get_config(s.win); return {c.relative,c.win,c.row,c.height}'),
               ['win', lua('return vim.g.search_owner'), 0, 1], 'one row at top of active editor')
         raw(b'hello')
-        equal(lua('return #require("jetvim.search").matches'), 4, 'incremental plain regex matches')
+        equal(lua('return #require("jetvim.search").matches'), 5, 'plain text matches case-insensitively')
         equal(lua('return vim.api.nvim_buf_get_lines(vim.g.search_source,0,-1,false)'), content, 'query never edits source')
         equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'), [1,0], 'initial match at caret')
         raw(b'\r')
-        equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'), [1,12], 'Enter advances while field remains open')
+        equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'), [1,6], 'Enter advances while field remains open')
         keys('<S-CR>')
         equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'), [1,0], 'Shift Enter goes backwards')
         raw(b'\x1b[103;9u')
-        equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'), [1,12], 'CommandG advances while input focused')
+        equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'), [1,6], 'CommandG advances while input focused')
         equal(lua('return vim.fn.mode()'), 'i', 'CommandG preserves search input typing')
         raw(b'\x1b[103;10u')
         equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'), [1,0], 'CommandShiftG moves backwards in input')
@@ -111,9 +111,16 @@ with tempfile.TemporaryDirectory(prefix='search-project-', dir=STATE) as directo
         equal(lua('return #require("jetvim.search").matches'), 5, 'slash regex i flag ignores case')
         keys('<C-u>')
         raw(b'h(ello|i)')
+        equal(lua('return #require("jetvim.search").matches'), 0, 'bare grouping characters are literal')
+        keys('<C-u>')
+        raw(b'/h(ello|i)/')
         equal(lua('return #require("jetvim.search").matches'), 4, 'regex grouping and alternatives')
         keys('<C-u>')
         raw(b'[')
+        equal(lua('return require("jetvim.search").error'), None, 'bare bracket is valid literal text')
+        equal(lua('return #require("jetvim.search").matches'), 0, 'bare bracket never starts a regex')
+        keys('<C-u>')
+        raw(b'/[/')
         equal(lua('return require("jetvim.search").error ~= nil'), True, 'invalid regex handled inline')
         equal(lua('return vim.api.nvim_buf_get_lines(require("jetvim.search").status_buf,0,1,false)[1]:find("Invalid regex",1,true) ~= nil'), True, 'invalid regex visible status')
         equal(lua('return vim.v.errmsg'), '', 'invalid regex never opens error prompt')
@@ -121,11 +128,11 @@ with tempfile.TemporaryDirectory(prefix='search-project-', dir=STATE) as directo
         raw(b'/hello/g')
         equal(lua('return require("jetvim.search").error:find("Invalid regex flag",1,true) ~= nil'), True, 'unsupported flags visible')
         keys('<C-u>')
-        raw(b'^')
+        raw(b'/^/')
         equal(lua('return #require("jetvim.search").matches'), 4, 'zero width regex terminates and matches line starts')
         keys('<C-u>')
         raw('héllo'.encode())
-        equal(lua('return #require("jetvim.search").matches'), 1, 'UTF8 regex matches without byte corruption')
+        equal(lua('return #require("jetvim.search").matches'), 1, 'UTF8 literal matches without byte corruption')
         lua('local s=require("jetvim.search"); vim.api.nvim_win_set_width(s.owner,vim.api.nvim_win_get_width(s.owner)-5); return true')
         time.sleep(0.15)
         equal(lua('local s=require("jetvim.search"); return vim.api.nvim_win_get_width(s.win)+vim.api.nvim_win_get_width(s.status_win)==vim.api.nvim_win_get_width(s.owner)'), True, 'search bar follows editor resize')
@@ -137,9 +144,9 @@ with tempfile.TemporaryDirectory(prefix='search-project-', dir=STATE) as directo
         keys('<Esc>')
         time.sleep(0.1)
         clear_highlights('plain Escape')
-        equal(lua('return vim.fn.getreg("/")'),r'\C\vhello','closing preserves plain search pattern')
+        equal(lua('return vim.fn.getreg("/")'),r'\c\Vhello','closing preserves literal ignore-case search pattern')
         equal(lua('return vim.api.nvim_get_current_win()'), lua('return vim.g.search_owner'), 'Escape returns editor focus')
-        equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'), [1,12], 'Escape keeps selected match caret')
+        equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'), [1,6], 'Escape keeps selected match caret')
         equal(lua('return #vim.api.nvim_list_wins()'), windows, 'no leaked search windows')
         equal(lua('return {vim.api.nvim_win_get_width(0),vim.api.nvim_win_get_width(require("jetvim.tree").win)}'), widths, 'search preserves split dimensions')
         equal(lua('local n=0; for _,b in ipairs(vim.api.nvim_list_bufs()) do if vim.bo[b].filetype=="jetvim-search" then n=n+1 end end; return n'), 0, 'no leaked search buffers')
@@ -158,6 +165,29 @@ with tempfile.TemporaryDirectory(prefix='search-project-', dir=STATE) as directo
         equal(lua('return vim.fn.mode()'),'i','closing regex preserves editor typing')
         raw(b'\x1b[103;10u')
         equal(lua('return vim.api.nvim_win_get_cursor(vim.g.search_owner)'),[1,6],'CommandShiftG navigates retained case-insensitive pattern')
+        # Both entry routes use literal text unless balanced slashes opt into
+        # regex. Backslashes must not smuggle Vim's magic/case switches through.
+        literal_content = ['hello world | HELLO WORLD', 'a.b aXb A.B', '[ ] ^ $ (x|y) x+y? {2} *',
+                           r'path/foo C:\Temp\file \C \c \v \V', 'ÄPFEL äpfel', 'slash /open']
+        lua('vim.api.nvim_buf_set_lines(vim.g.search_source,0,-1,false,vim.json.decode('+json.dumps(json.dumps(literal_content))+'));'
+            '_G.SearchOriginalCase={vim.o.ignorecase,vim.o.smartcase};vim.o.ignorecase=false;vim.o.smartcase=true;return true')
+        raw(f'\x1b[{0xF0000+index}u'.encode())
+        cases = [('hello world',2), ('HELLO WORLD',2), ('a.b',2), ('[ ]',1), ('^ $',1),
+                 ('(x|y)',1), ('x+y?',1), ('{2}',1), ('*',1), (r'C:\Temp\file',1),
+                 (r'\C',2), (r'\c',2), (r'\v',2), (r'\V',2), ('äpfel',2), ('/open',1),
+                 ('path/foo',1), ('/path\\/foo/',1), ('/a.b/',2), ('/a.b/i',3),
+                 ('/hello world/',1), ('/HELLO WORLD/',1), ('/hello world/i',2)]
+        for text, count in cases:
+            keys('<C-u>'); raw(text.encode())
+            equal(lua('return #require("jetvim.search").matches'),count,'text/regex semantics: '+text)
+            equal(lua('return require("jetvim.search").error'),None,'valid literal or regex query: '+text)
+            equal(lua('return vim.fn.mode()'),'i','search typing remains active')
+        equal(lua('return vim.api.nvim_buf_get_lines(vim.g.search_source,0,-1,false)'),literal_content,'all literal/regex query input leaves source unchanged')
+        keys('<C-u>')
+        equal(lua('local s=require("jetvim.search");return vim.api.nvim_buf_get_lines(s.status_buf,0,1,false)[1]:find("Text",1,true)~=nil'),True,'empty search advertises text and slash-regex modes')
+        keys('<Esc>'); clear_highlights('literal/regex table Escape')
+        lua('vim.o.ignorecase=_G.SearchOriginalCase[1];vim.o.smartcase=_G.SearchOriginalCase[2];return true')
+        equal((project/'main.txt').read_text(),'\n'.join(content)+'\n','query tests never write source file')
         # Find in Files must route from tree, rather than becoming speed-search text.
         lua('require("jetvim.tree").focus(); return true')
         lua('_G.search_original_executable=vim.fn.executable; vim.fn.executable=function(name) if name=="rg" then return 0 end; return _G.search_original_executable(name) end; return true')

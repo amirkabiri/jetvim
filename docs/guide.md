@@ -262,9 +262,9 @@ the user for a terminal to receive them. No system settings are changed here.
 highlight as you type. Enter goes forward; Shift-Enter goes backward; Escape
 closes the field and returns to the editor. **⌘G / ⌘⇧G** continue the search.
 
-Use `hello`, `h(ello|i)` or `/hello/i`. Patterns use Vim's very-magic regular
-expressions; the optional `i` flag ignores case. Invalid patterns appear in the
-bar without an error dialog. Search is per line, with a 5,000-match / 2 MiB limit
+Plain text such as `hello world` is literal and case-insensitive. Use `/h(ello|i)/`
+for a case-sensitive Vim very-magic regex, or `/hello/i` to ignore case. Invalid
+patterns appear in the bar without an error dialog. Search is per line, with a 5,000-match / 2 MiB limit
 indicated by `+`. **⌘⇧F** opens a focused Find in Files modal. In the tree it
 searches the selected folder or file’s parent; selecting the root searches the
 whole project. The modal displays its scope and searches literal text as you type.
