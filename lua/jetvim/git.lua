@@ -1,4 +1,4 @@
-local M = { rows = {}, selected = {}, selected_count = 0, generation = 0, preview_generation = 0 }
+local M = { rows = {}, selected = {}, selected_count = 0, selection_active = false, generation = 0, preview_generation = 0 }
 local highlight_ns = vim.api.nvim_create_namespace('JetvimGitHighlights')
 local selection_ns = vim.api.nvim_create_namespace('JetvimGitSelection')
 local function valid(win) return win and vim.api.nvim_win_is_valid(win) end
@@ -35,12 +35,12 @@ local function draw_selection()
     })
   end
   vim.api.nvim_buf_set_extmark(M.list_buf, selection_ns, 1, 0, {
-    virt_text = { { ' ' .. M.selected_count .. ' changes selected · Enter opens focused file', 'JetvimToolTitle' } },
+    virt_text = { { ' ' .. M.selected_count .. ' changes selected · Enter opens selected files', 'JetvimToolTitle' } },
     virt_text_pos = 'overlay',
   })
 end
 function M.clear_selection()
-  M.selection_cursor = nil
+  M.selection_cursor, M.selection_active = nil, false
   if M.selected_count == 0 and next(M.selected) == nil then return end
   M.selected, M.selected_count = {}, 0
   if M.list_buf and vim.api.nvim_buf_is_valid(M.list_buf) then
@@ -51,6 +51,7 @@ function M.select_all()
   if not valid(M.list_win) or vim.api.nvim_get_current_win() ~= M.list_win
     or vim.api.nvim_win_get_buf(M.list_win) ~= M.list_buf then return end
   M.selected, M.selection_repo = {}, M.repo
+  M.selection_active = true
   for _, entry in pairs(M.rows) do M.selected[selection_key(entry)] = true end
   M.selection_cursor = vim.api.nvim_win_get_cursor(M.list_win)
   draw_selection()
@@ -151,6 +152,7 @@ function M.preview()
   end)
 end
 function M.render(entries)
+  M.rows_repo, M.rows_project, M.rows_generation = M.repo, require('jetvim.project').root, M.generation
   local selected = valid(M.list_win) and M.rows[vim.api.nvim_win_get_cursor(M.list_win)[1]] or nil
   local lines = { ' GIT · Local Changes', ' Enter open · R refresh · Esc editor', '' }
   M.rows = {}
@@ -239,14 +241,94 @@ function M.move(direction)
   vim.api.nvim_win_set_cursor(M.list_win, { rows[index], 0 })
   M.preview()
 end
+local function existing_file(path)
+  local resolved = require('jetvim.project').resolve(path)
+  local stat = resolved and vim.uv.fs_stat(resolved)
+  if stat and stat.type == 'file' then return resolved end
+end
 function M.open_entry()
-  local entry = M.rows[vim.api.nvim_win_get_cursor(M.list_win)[1]]
-  if not entry then return end
-  local path = M.repo .. '/' .. entry.path
-  if not vim.uv.fs_stat(path) then vim.notify('This file was deleted; its diff is shown in Git Changes'); return end
-  M.editor()
-  require('jetvim.tree').editor_win = vim.api.nvim_get_current_win()
-  require('jetvim.project').open(path)
+  if not valid(M.list_win) or vim.api.nvim_get_current_win() ~= M.list_win
+    or vim.api.nvim_win_get_buf(M.list_win) ~= M.list_buf then return end
+  local project = require('jetvim.project')
+  local repo, root, generation = M.repo, project.root, M.generation
+  local function current()
+    return type(repo) == 'string' and repo ~= '' and M.repo == repo and project.root == root
+      and M.generation == generation and M.rows_repo == repo and M.rows_project == root
+      and M.rows_generation == generation and valid(M.list_win)
+  end
+  -- A pending refresh must not reinterpret old rows under a new repository.
+  if not current() then return end
+  local selection = M.selection_active or M.selected_count > 0 or next(M.selected) ~= nil
+  if not selection then
+    local entry = M.rows[vim.api.nvim_win_get_cursor(M.list_win)[1]]
+    if not entry then return end
+    local path = existing_file(repo .. '/' .. entry.path)
+    if not path then vim.notify('Cannot open this changed file; its diff remains in Git Changes.'); return end
+    M.editor()
+    require('jetvim.tree').editor_win = vim.api.nvim_get_current_win()
+    project.open(path)
+    return
+  end
+  local entries = M.selected_entries()
+  if #entries == 0 then return end -- Explicit stale selection never falls back to another file.
+  local targets, seen = {}, {}
+  for _, entry in ipairs(entries) do
+    local path = existing_file(repo .. '/' .. entry.path)
+    if path and not seen[path] then
+      seen[path] = true
+      targets[#targets + 1] = path
+    end
+  end
+  if #targets == 0 then return end
+  local existing, original = {}, {}
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    original[buf] = true
+    if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == '' then
+      local name = vim.api.nvim_buf_get_name(buf)
+      local path = name ~= '' and vim.uv.fs_realpath(name)
+      if path then
+        local previous = existing[path]
+        if not previous or (vim.bo[buf].modified and not vim.bo[previous].modified)
+          or (vim.bo[buf].modified == vim.bo[previous].modified
+            and vim.api.nvim_buf_is_loaded(buf) and not vim.api.nvim_buf_is_loaded(previous)) then existing[path] = buf end
+      end
+    end
+  end
+  local last
+  for _, path in ipairs(targets) do
+    if not current() then break end
+    local buf
+    local previous_error = vim.v.errmsg
+    local ok, err = pcall(function()
+      if existing_file(path) ~= path then return end
+      buf = existing[path] or vim.fn.bufadd(path)
+      if not vim.api.nvim_buf_is_loaded(buf) then
+        if vim.bo[buf].modified then error('Buffer has unsaved changes') end
+        vim.fn.bufload(buf)
+      end
+      if not vim.api.nvim_buf_is_loaded(buf) or existing_file(path) ~= path then error('File is no longer available') end
+      vim.bo[buf].buflisted = true
+      existing[path], last = buf, buf
+    end)
+    if not ok then
+      vim.v.errmsg = previous_error
+      -- Only discard a failed buffer allocated by this operation. Existing or
+      -- modified buffers belong to the user even if a read/autocmd failed.
+      if buf and not original[buf] and vim.api.nvim_buf_is_valid(buf)
+        and not vim.bo[buf].modified and #vim.fn.win_findbuf(buf) == 0 then
+        pcall(vim.api.nvim_buf_delete, buf, { force = true })
+      end
+      vim.notify('Cannot open ' .. display(path) .. ': ' .. display(tostring(err)), vim.log.levels.WARN)
+    end
+  end
+  if last and current() then
+    -- Load all tabs without intermediate focus changes, then activate once.
+    -- Normal configured focus-loss autosave remains in effect for that switch.
+    M.editor()
+    require('jetvim.tree').editor_win = vim.api.nvim_get_current_win()
+    vim.api.nvim_set_current_buf(last)
+    if vim.bo.modifiable then vim.cmd.startinsert() end
+  end
 end
 function M.focus_diff()
   if not valid(M.list_win)
@@ -299,7 +381,7 @@ function M.toggle()
   if vim.bo.buftype == '' then M.editor_win = vim.api.nvim_get_current_win()
   else M.editor_win = require('jetvim.tree').editor_win end
   M.list_buf, M.diff_buf = vim.api.nvim_create_buf(false, true), vim.api.nvim_create_buf(false, true)
-  M.selected, M.selected_count, M.selection_cursor = {}, 0, nil
+  M.selected, M.selected_count, M.selection_cursor, M.selection_active = {}, 0, nil, false
   for _, buf in ipairs({ M.list_buf, M.diff_buf }) do vim.bo[buf].bufhidden = 'wipe'; vim.bo[buf].swapfile = false end
   vim.bo[M.list_buf].filetype, vim.bo[M.diff_buf].filetype = 'jetvim-git', 'diff'
   M.restoring = true

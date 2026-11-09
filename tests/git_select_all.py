@@ -170,11 +170,88 @@ return true
         equal(lua('return vim.fn.mode()'), 's', 'CmdA in diff keeps normal read-only text selection')
         equal(count(), 5, 'diff text selection does not change list multiselection')
         raw(editor, b'\x1b[27u');editor.keys('<S-Tab>')
-        raw(editor, b'\r')
+        lua('_G.git_bulk_unlisted=vim.fn.bufadd(' + quote(str(project/odd)) + ');vim.fn.bufload(git_bulk_unlisted);'
+            'vim.bo[git_bulk_unlisted].buflisted=false;vim.api.nvim_buf_set_lines(git_bulk_unlisted,0,-1,false,{"-- unsaved unlisted"});'
+            'local one=vim.fn.bufnr(' + quote(str(project/'one.lua')) + ');vim.api.nvim_buf_set_lines(one,0,-1,false,{"-- unsaved one"});return true')
+        for label, chord in variants:
+            if lua('return vim.bo.filetype') != 'jetvim-git':
+                raw(editor, b'\x1b[57;9u')
+                editor.wait('local g=require("jetvim.git");return vim.bo.filetype=="jetvim-git" and g.rows_generation==g.generation')
+            lua('local g=require("jetvim.git");vim.api.nvim_win_set_cursor(g.list_win,{4,0});return true')
+            raw(editor, chord)
+            before = snapshot()
+            raw(editor, b'\r')
+            editor.wait('return vim.bo.buftype==""')
+            equal(lua('return vim.api.nvim_get_current_buf()'), lua('return git_bulk_unlisted'), label + ' header Enter opens final selected file using existing unlisted buffer')
+            equal(lua('return vim.bo.buflisted and vim.bo.modified'), True, label + ' promotes unlisted dirty buffer without discarding edits')
+            equal(lua('return vim.api.nvim_get_current_line()'), '-- unsaved unlisted', label + ' preserves existing unlisted contents')
+            equal(lua('local b=vim.fn.bufnr(' + quote(str(project/'one.lua')) + ');return {vim.bo[b].modified,vim.api.nvim_buf_get_lines(b,0,-1,false)}'),
+                  [True,['-- unsaved one']], label + ' preserves existing dirty editor tab')
+            equal(lua('local paths={};for _,b in ipairs(vim.api.nvim_list_bufs()) do if vim.bo[b].buflisted and vim.bo[b].buftype=="" then '
+                      'paths[#paths+1]=vim.api.nvim_buf_get_name(b) end end;table.sort(paths);return paths'),
+                  sorted(str(project/name) for name in ('one.lua','conflict.lua',odd)), label + ' opens all unique selected files once')
+            after = snapshot()
+            equal({key:after[key] for key in ('lines','view','geometry','diff','cursor','calls')},
+                  {key:before[key] for key in ('lines','view','geometry','diff','cursor','calls')}, label + ' bulk Enter preserves diff, scroll, panes and Git state')
+            equal(lua('return vim.fn.bufnr(' + quote(str(project/'deleted.lua')) + ')'), -1, label + ' never creates an empty deleted-file buffer')
+
+        # Directories, symlink escapes and failures cannot create empty tabs or
+        # stop later valid files. A recreated staged deletion is still a file.
+        for name in ('recreated.lua','broken.lua','after.lua'):
+            (project/name).write_text('-- unchanged\n')
+        with tempfile.TemporaryDirectory(prefix='git-outside-',dir=STATE) as external:
+            outside=Path(external)/'outside.lua';outside.write_text('-- outside\n')
+            (project/'escape.lua').symlink_to(outside)
+            (project/'alias.lua').symlink_to(project/'one.lua')
+            raw(editor,b'\x1b[57;9u')
+            editor.wait('local g=require("jetvim.git");return vim.bo.filetype=="jetvim-git" and g.rows_generation==g.generation')
+            value='MM one.lua\0A  alias.lua\0D  recreated.lua\0?? recreated.lua\0?? alternate\0?? broken.lua\0?? after.lua\0?? escape.lua\0'
+            refresh(value,9)
+            lua('_G.git_bulk_load=vim.fn.bufload;_G.git_bulk_notify=vim.notify;_G.git_bulk_errors={};'
+                'vim.fn.bufload=function(b) if vim.api.nvim_buf_get_name(b)==' + quote(str(project/'broken.lua')) + ' then error("injected read failure") end;return git_bulk_load(b) end;'
+                'vim.notify=function(message) git_bulk_errors[#git_bulk_errors+1]=message end;return true')
+            raw(editor,variants[0][1]+b'\r')
+            editor.wait('return vim.bo.buftype==""')
+            lua('vim.fn.bufload=git_bulk_load;vim.notify=git_bulk_notify;return true')
+            equal(lua('return vim.api.nvim_buf_get_name(0)'),str(project/'after.lua'),'per-file failure does not stop later selected files')
+            equal(lua('local count=0;for _,b in ipairs(vim.api.nvim_list_bufs()) do if vim.bo[b].buflisted and vim.uv.fs_realpath(vim.api.nvim_buf_get_name(b))=='
+                      +quote(str(project/'one.lua'))+' then count=count+1 end end;return count'),1,'canonical aliases and staged/unstaged entries do not duplicate tabs')
+            equal(lua('return vim.fn.bufloaded('+quote(str(project/'recreated.lua'))+')'),1,'recreated staged deletion opens normally')
+            for name in ('broken.lua','alternate','escape.lua'):
+                equal(lua('return vim.fn.bufnr('+quote(str(project/name))+')'),-1,name+' is not left as an empty file buffer')
+            equal(lua('return vim.fn.bufnr('+quote(str(outside))+')'),-1,'symlink escape never opens outside project')
+            equal(lua('return #git_bulk_errors'),1,'load error is reported once while valid files continue')
+            equal(outside.read_text(),'-- outside\n','outside file remains unchanged')
+
+        # A pending query or invalidated selection must not fall back to a row
+        # interpreted using another repository/project.
+        raw(editor,b'\x1b[57;9u')
+        editor.wait('local g=require("jetvim.git");return vim.bo.filetype=="jetvim-git" and g.rows_generation==g.generation')
+        refresh(status,5);raw(editor,variants[0][1])
+        lua('local g=require("jetvim.git");g.generation=g.generation+1;return true')
+        raw(editor,b'\r')
+        equal(lua('return vim.bo.filetype'),'jetvim-git','pending refresh blocks stale bulk Enter')
+        refresh(status,5);raw(editor,variants[0][1])
+        lua('require("jetvim.git").selection_repo="stale repository";return true')
+        raw(editor,b'\r')
+        equal(lua('return vim.bo.filetype'),'jetvim-git','stale selected repository never falls back to focused row')
+        refresh(status,5);raw(editor,variants[0][1])
+        refresh('?? new.lua\0',1)
+        raw(editor,b'\r')
+        equal(lua('return vim.bo.filetype'),'jetvim-git','new refresh entry is not opened when all selected identities disappeared')
+        refresh(' D deleted.lua\0',1);raw(editor,variants[1][1]+b'\r')
+        equal(lua('return vim.bo.filetype'),'jetvim-git','all-deleted selection stays in list with diff available')
+        equal(lua('return vim.fn.bufnr('+quote(str(project/'deleted.lua'))+')'),-1,'all-deleted selection creates no empty buffer')
+        refresh('?? new.lua\0',1)
+        raw(editor,b'\x1b[A') # Explicit ordinary movement cancels stale bulk intent.
+        raw(editor,b'\r')
         editor.wait('return vim.bo.buftype==""')
-        equal(lua('return vim.api.nvim_buf_get_name(0)'), str(project/'one.lua'), 'Enter opens only focused change')
-        equal(lua('return vim.fn.bufnr(' + quote(str(project/odd)) + ')'), -1, 'Enter does not bulk-open other selected files')
-        equal(lua('return vim.fn.bufnr(' + quote(str(project/'deleted.lua')) + ')'), -1, 'Enter does not create a buffer for selected deletion')
+        equal(lua('return vim.api.nvim_buf_get_name(0)'),str(project/'new.lua'),'default Enter still opens only focused file')
+        raw(editor,b'\x1b[57;9u')
+        editor.wait('local g=require("jetvim.git");return vim.bo.filetype=="jetvim-git" and g.rows_generation==g.generation')
+        refresh(status,5)
+        raw(editor,b'\x1b[27u')
+        lua('require("jetvim.git").editor();return true')
         raw(editor, b'\x1b[57;9u')
         editor.wait('return vim.bo.filetype=="jetvim-git"')
         raw(editor, variants[0][1]);raw(editor, b'\x1b[57;9u')

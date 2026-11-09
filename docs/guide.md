@@ -199,7 +199,8 @@ file also refreshes an open panel. Escape returns focus to the editor, while
 Shift-Escape hides the panel. Pressing ⌘9 while the panel is focused toggles it
 closed. A folder outside a Git repository shows an explanatory message.
 In the file list, ⌘A selects all change entries and shows their count. Ordinary
-arrows clear the selection; Enter still opens only the focused file.
+arrows clear the selection; Enter opens every selected existing file once.
+With no selection, Enter opens the focused file. Deleted files remain available as diffs.
 Tool-pane sizes persist per project in `.idea/jetvim/layout.json`: project-tree
 width, Git panel height and change-list width, and terminal panel height. Mouse
 and Ctrl+Option+Arrow resizing are remembered across toggles and restarts. Layout
