@@ -267,7 +267,9 @@ for a case-sensitive Vim very-magic regex, or `/hello/i` to ignore case. Invalid
 patterns appear in the bar without an error dialog. Search is per line, with a 5,000-match / 2 MiB limit
 indicated by `+`. **⌘⇧F** opens a focused Find in Files modal. In the tree it
 searches the selected folder or file’s parent; selecting the root searches the
-whole project. The modal displays its scope and searches literal text as you type.
+whole project. The modal displays its scope and searches literal text without
+case sensitivity. Use `/pattern/` for case-sensitive ripgrep regex, or `/pattern/i`
+to ignore case.
 Shift+↑/↓ selects a result range; Shift+PageUp/PageDown (Fn+Shift+↑/↓ on macOS)
 extends it by a page. Plain arrows collapse the range; Enter opens each selected
 file once at its first selected match.

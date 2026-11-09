@@ -20,6 +20,24 @@ end
 local function query(state)
   return vim.api.nvim_buf_get_lines(state.input, 0, 1, false)[1] or ''
 end
+-- Share the in-file search notation, not its compiled Vim pattern: ripgrep
+-- receives its own regex dialect, or raw fixed text, as a single argv value.
+local function pattern(text)
+  if text:sub(1, 1) == '/' then
+    for ending = #text, 2, -1 do
+      if text:sub(ending, ending) == '/' then
+        local slashes, at = 0, ending - 1
+        while at > 0 and text:sub(at, at) == '\\' do slashes, at = slashes + 1, at - 1 end
+        if slashes % 2 == 0 then
+          local flags = text:sub(ending + 1)
+          if flags ~= '' and flags ~= 'i' then return nil, 'Invalid regex flag (use i)' end
+          return { text = text:sub(2, ending - 1):gsub('\\/', '/'), regex = true, ignore_case = flags == 'i' }
+        end
+      end
+    end
+  end
+  return { text = text, regex = false, ignore_case = true }
+end
 local function cancel(state)
   state.generation = state.generation + 1
   if state.timer then state.timer:stop(); state.timer:close(); state.timer = nil end
@@ -78,6 +96,8 @@ local function run(state, text, generation)
   if require('jetvim.project').resolve(state.scope) ~= state.scope then
     state.message = 'Selected path is outside the project'; draw(state); return
   end
+  local search, parse_error = pattern(text)
+  if not search then state.message = parse_error; draw(state); return end
   if vim.fn.executable('rg') ~= 1 then state.message = 'Find in Files requires ripgrep (rg)'; draw(state); return end
   state.busy, state.message = true, nil
   draw(state)
@@ -120,8 +140,12 @@ local function run(state, text, generation)
     end,
     stderr = function(_, data) if data then stderr = (stderr .. data):sub(1, 500) end end,
   }
-  local ok, job = pcall(vim.system, { 'rg', '--json', '--fixed-strings', '--hidden', '--max-count', '100',
-    '--max-filesize', '2M', '-g', '!.git', '-g', '!.jetvim', '-g', '!.idea', '-g', '!node_modules', '--', text, '.' }, options,
+  local argv = { 'rg', '--no-config', '--json', '--hidden', '--max-count', '100',
+    '--max-filesize', '2M', '-g', '!.git', '-g', '!.jetvim', '-g', '!.idea', '-g', '!node_modules' }
+  if not search.regex then argv[#argv + 1] = '--fixed-strings' end
+  argv[#argv + 1] = search.ignore_case and '--ignore-case' or '--case-sensitive'
+  vim.list_extend(argv, { '--', search.text, '.' })
+  local ok, job = pcall(vim.system, argv, options,
     function(result)
       vim.schedule(function()
         if not current() then return end
@@ -260,7 +284,7 @@ function M.open()
   state.promptwin = vim.api.nvim_open_win(state.input, true, { relative = 'editor', row = 0, col = 1, width = 1, height = 1,
     style = 'minimal', border = 'rounded', title = ' Find in Files · ' .. label .. ' ', title_pos = 'left', zindex = 80 })
   for _, win in ipairs({ state.promptwin, state.listwin }) do vim.wo[win].winhighlight = 'Normal:JetvimPopup,NormalFloat:JetvimPopup,FloatBorder:JetvimPopupBorder' end
-  vim.wo[state.promptwin].statusline = '%#JetvimStatus#  Find in Files  ›  ' .. label:gsub('%%', '%%%%') .. ' %= Literal search  '
+  vim.wo[state.promptwin].statusline = '%#JetvimStatus#  Find in Files  ›  ' .. label:gsub('%%', '%%%%') .. ' %= Text · /…/ regex  '
   vim.api.nvim_buf_set_extmark(state.input, ns, 0, 0, { virt_text = { { 'Find › ', 'JetvimMuted' } }, virt_text_pos = 'inline', right_gravity = false })
   require('jetvim.keymap').input_word_delete(state.input)
   for _, mode in ipairs({ 'i', 'n' }) do

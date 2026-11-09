@@ -20,7 +20,10 @@ within the selected folder, or a selected file's parent; selecting the root
 searches the whole project. From the editor it searches the whole project.
 The modal displays its scope above the input.
 
-Type literal text to search after a 200 ms pause. Up/Down choose results;
+Plain text is literal and case-insensitive, searched after a 200 ms pause.
+Use `/pattern/` for case-sensitive ripgrep regex or `/pattern/i` to ignore case.
+Find in Files uses ripgrep's regex syntax; in-file Find uses Vim's very-magic syntax.
+Up/Down choose results;
 Shift+Up/Down or Shift+PageUp/PageDown selects a range. Enter opens each selected
 file once at its first selected match; Escape cancels and restores focus.
 Changing the query cancels the previous search. Errors appear inside the modal.
