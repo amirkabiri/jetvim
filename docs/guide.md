@@ -110,6 +110,8 @@ character. The first Escape clears an active query and keeps sidebar focus;
 Escape with no query returns to the editor. Enter opens a matching file or
 toggles a matching directory, while ←/→ collapses/expands it. Search includes
 expanded descendants; use Go to File (⌘⇧O) to search the whole project.
+Select several tree rows with Shift+↑/↓ and press Enter to open their files.
+Folders are skipped in a range; Enter on one folder still toggles it.
 Right on an expanded folder enters its first child; Left on a file or collapsed
 folder selects its parent. Moving to a parent/child that does not match the active
 query dismisses that query. The project root is selectable too: a second Left on

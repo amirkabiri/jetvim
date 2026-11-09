@@ -254,13 +254,95 @@ function M.render()
   end
   M.update_search(M.query ~= '')
 end
+local function existing_file(path)
+  local resolved = require('jetvim.project').resolve(path)
+  local stat = resolved and vim.uv.fs_stat(resolved)
+  return stat and stat.type == 'file' and resolved or nil
+end
+local function open_files(entries)
+  local project = require('jetvim.project')
+  local root, origin, tree_buf = project.root, vim.api.nvim_get_current_win(), M.buf
+  local function current()
+    return project.root == root and vim.api.nvim_get_current_win() == origin
+      and tree_window(origin) and M.buf == tree_buf
+  end
+  local targets, seen = {}, {}
+  for _, entry in ipairs(entries) do
+    local path = not entry.directory and existing_file(entry.path)
+    if path and not seen[path] then seen[path] = true; targets[#targets + 1] = path end
+  end
+  if #targets == 0 then return end
+  local existing, original = {}, {}
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    original[buf] = true
+    if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == '' then
+      local name = vim.api.nvim_buf_get_name(buf)
+      local path = name ~= '' and vim.uv.fs_realpath(name)
+      if path then
+        local previous = existing[path]
+        if not previous or (vim.bo[buf].modified and not vim.bo[previous].modified)
+          or (vim.bo[buf].modified == vim.bo[previous].modified
+            and vim.api.nvim_buf_is_loaded(buf) and not vim.api.nvim_buf_is_loaded(previous)) then existing[path] = buf end
+      end
+    end
+  end
+  local last
+  for _, path in ipairs(targets) do
+    if not current() then break end
+    local buf
+    local previous_error = vim.v.errmsg
+    local ok, err = pcall(function()
+      if existing_file(path) ~= path then return end
+      buf = existing[path] or vim.fn.bufadd(path)
+      if not vim.api.nvim_buf_is_loaded(buf) then
+        if vim.bo[buf].modified then error('Buffer has unsaved changes') end
+        vim.fn.bufload(buf)
+      end
+      if not vim.api.nvim_buf_is_loaded(buf) or existing_file(path) ~= path then error('File is no longer available') end
+      vim.bo[buf].buflisted = true
+      existing[path], last = buf, buf
+    end)
+    if not ok then
+      vim.v.errmsg = previous_error
+      if buf and not original[buf] and vim.api.nvim_buf_is_valid(buf)
+        and not vim.bo[buf].modified and #vim.fn.win_findbuf(buf) == 0 then
+        pcall(vim.api.nvim_buf_delete, buf, { force = true })
+      end
+      vim.notify('Cannot open ' .. display_name(path) .. ': ' .. display_name(tostring(err)), vim.log.levels.WARN)
+    end
+  end
+  if last and current() then
+    -- Populate tabs without intermediate focus switches or autosave changes.
+    M.editor()
+    vim.api.nvim_set_current_buf(last)
+    if vim.bo.modifiable then vim.cmd.startinsert() end
+  end
+end
 function M.open_entry()
-  local entry = M.rows[vim.api.nvim_win_get_cursor(0)[1]]
-  if not entry then return end
-  if M.query ~= '' and not vim.tbl_contains(M.matches, vim.api.nvim_win_get_cursor(0)[1]) then return end
+  if not tree_window(vim.api.nvim_get_current_win()) then return end
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  local first, last = row, row
+  local mode = vim.fn.mode():sub(1, 1)
+  local selecting = mode == 's' or mode == 'S' or mode == 'v' or mode == 'V' or mode == '\19' or mode == '\22'
+  if selecting then
+    local anchor = vim.fn.getpos('v')[2]
+    first, last = math.min(anchor, row), math.max(anchor, row)
+  end
+  local entries = {}
+  for selected = first, last do
+    local entry = M.rows[selected]
+    if entry and (M.query == '' or M.match_index[selected]) then entries[#entries + 1] = entry end
+  end
+  if selecting then vim.cmd.normal({ args = { vim.keycode('<Esc>') }, bang = true }) end
+  if #entries == 0 then return end
   M.clear_search()
+  if first ~= last then open_files(entries); return end
+  local entry = entries[1]
   if entry.directory then M.expanded[entry.path] = not M.expanded[entry.path]; M.render()
-  else require('jetvim.project').open(entry.path) end
+  else
+    local path = existing_file(entry.path)
+    if path then require('jetvim.project').open(path) end
+  end
 end
 function M.hide()
   M.clear_search()
@@ -327,7 +409,7 @@ function M.focus()
       map(binding.fallback, function() M.type_search(text) end)
     end
   end
-  map('<CR>', M.open_entry)
+  vim.keymap.set({ 'n', 'x', 's' }, '<CR>', M.open_entry, { buffer = M.buf, silent = true, nowait = true })
   map('<2-LeftMouse>', M.open_entry)
   map('<Down>', function() M.move(1) end)
   map('<Up>', function() M.move(-1) end)
