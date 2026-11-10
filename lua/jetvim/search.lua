@@ -12,9 +12,9 @@ local function source() return valid(M.owner) and vim.api.nvim_win_get_buf(M.own
 local function clear()
   if M.source and vim.api.nvim_buf_is_valid(M.source) then vim.api.nvim_buf_clear_namespace(M.source, ns, 0, -1) end
 end
-function M.pattern(query)
+function M.pattern(query, literal)
   local expression, flags, regex = query, '', false
-  if query:sub(1, 1) == '/' then
+  if not literal and query:sub(1, 1) == '/' then
     local ending
     for i = #query, 2, -1 do
       if query:sub(i, i) == '/' then
@@ -47,7 +47,7 @@ local function current_mark()
   if not source() then return end
   for i, match in ipairs(M.matches) do
     vim.api.nvim_buf_set_extmark(M.source, ns, match.row - 1, match.col, {
-      end_col = match.finish, hl_group = i == M.selected and 'IncSearch' or 'Search',
+      end_row = (match.end_row or match.row) - 1, end_col = match.finish, hl_group = i == M.selected and 'IncSearch' or 'Search',
       priority = 180, strict = false,
     })
   end
@@ -60,16 +60,44 @@ local function reveal()
   end
   current_mark(); status()
 end
+local function multiline_matches(pattern, cursor)
+  local lines, starts, bytes = {}, {}, 0
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(M.source, 0, -1, false)) do
+    local ending = bytes + #line + (#lines > 0 and 1 or 0)
+    if ending > 2 * 1024 * 1024 then M.limited = true; break end
+    starts[#starts + 1] = bytes + (#lines > 0 and 1 or 0)
+    lines[#lines + 1], bytes = line, ending
+  end
+  local text, offset, row, ending_row = table.concat(lines, '\n'), 0, 1, 1
+  while offset <= #text and #lines > 0 do
+    local ok, match = pcall(vim.fn.matchstrpos, text, pattern, offset, 1)
+    if not ok then M.error = 'Invalid search'; M.matches = {}; return end
+    if match[2] < 0 then break end
+    while starts[row + 1] and starts[row + 1] <= match[2] do row = row + 1 end
+    while starts[ending_row + 1] and starts[ending_row + 1] <= match[3] do ending_row = ending_row + 1 end
+    local col = match[2] - starts[row]
+    M.matches[#M.matches + 1] = { row = row, col = col, end_row = ending_row, finish = match[3] - starts[ending_row] }
+    if M.selected == 0 and (row > cursor[1] or row == cursor[1] and col >= cursor[2]) then M.selected = #M.matches end
+    if #M.matches >= 5000 then M.limited = true; break end
+    offset = match[3] -- A multiline literal is nonempty, so this always advances.
+  end
+end
 function M.update()
   if not source() then M.close(); return end
   if M.input and vim.api.nvim_buf_is_valid(M.input) then M.query = vim.api.nvim_buf_get_lines(M.input, 0, 1, false)[1] or '' end
   M.matches, M.selected, M.error, M.limited = {}, 0, nil, false
   clear()
   if M.query == '' then status(); return end
-  local pattern, err = M.pattern(M.query)
+  local seed = M.literal_seed
+  if seed and (seed.query ~= M.query or M.input and seed.tick ~= vim.api.nvim_buf_get_changedtick(M.input)) then
+    M.literal_seed, seed = nil, nil
+  end
+  local pattern, err = M.pattern(seed and seed.text or M.query, seed ~= nil)
   if not pattern then M.error = err; status(); return end
   M.compiled = pattern
   local cursor = M.anchor or vim.api.nvim_win_get_cursor(M.owner)
+  if seed and seed.multiline then multiline_matches(pattern, cursor)
+  else
   local bytes = 0
   for row, line in ipairs(vim.api.nvim_buf_get_lines(M.source, 0, -1, false)) do
     bytes = bytes + #line
@@ -90,6 +118,7 @@ function M.update()
       end
     end
     if M.limited then break end
+  end
   end
   if #M.matches > 0 and M.selected == 0 then M.selected = 1 end
   vim.fn.setreg('/', pattern)
@@ -173,22 +202,41 @@ function M.geometry()
   vim.api.nvim_win_set_config(M.status_win, { relative = 'win', win = M.owner, row = 0, col = input, width = info, height = 1 })
 end
 function M.open()
-  if valid(M.win) then vim.api.nvim_set_current_win(M.win); vim.cmd.startinsert(); return end
+  local seed
+  local mode = vim.fn.mode():sub(1, 1)
+  local selecting = mode == 'v' or mode == 'V' or mode == 's' or mode == 'S' or mode == '\22' or mode == '\19'
+  if require('jetvim.tree').is_editor_window(vim.api.nvim_get_current_win()) and vim.bo.buftype == ''
+    and selecting then
+    local kind = ({ s = 'v', S = 'V', ['\19'] = '\22' })[mode] or mode
+    local a, b = vim.fn.getpos('v'), vim.fn.getpos('.')
+    local options = { type = kind, exclusive = vim.o.selection == 'exclusive' }
+    local region, positions = vim.fn.getregion(a, b, options), vim.fn.getregionpos(a, b, options)
+    if #region > 0 then
+      seed = { query = table.concat(region, '\\n'), text = table.concat(region, '\n'), multiline = #region > 1,
+        owner = vim.api.nvim_get_current_win(), source = vim.api.nvim_get_current_buf(),
+        anchor = { positions[1][1][2], math.max(0, positions[1][1][3] - 1) } }
+    end
+  end
+  if selecting then vim.cmd.normal({ args = { vim.keycode('<Esc>') }, bang = true }) end
+  if valid(M.win) and not seed then vim.api.nvim_set_current_win(M.win); vim.cmd.startinsert(); return end
   M.close()
   local restarting = pending_leave ~= nil and vim.fn.mode() == 'i'
   invalidate_resume()
-  require('jetvim.tree').editor()
+  if seed and valid(seed.owner) and vim.api.nvim_win_get_buf(seed.owner) == seed.source then vim.api.nvim_set_current_win(seed.owner)
+  elseif not require('jetvim.tree').is_editor_window(vim.api.nvim_get_current_win()) then require('jetvim.tree').editor() end
   if vim.bo.buftype ~= '' then return end
   M.owner, M.source = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
   -- The shared key dispatcher finishes insert mode before calling an action.
   -- Search fields return to ordinary editor typing, matching Jetvim's default.
   M.typing = true
-  M.anchor = vim.api.nvim_win_get_cursor(M.owner)
+  M.anchor = seed and seed.anchor or vim.api.nvim_win_get_cursor(M.owner)
+  if seed then M.query, M.literal_seed = seed.query, seed end
   M.input, M.status_buf = vim.api.nvim_create_buf(false, true), vim.api.nvim_create_buf(false, true)
   for _, buf in ipairs({ M.input, M.status_buf }) do
     vim.bo[buf].bufhidden, vim.bo[buf].filetype = 'wipe', 'jetvim-search'
   end
   vim.api.nvim_buf_set_lines(M.input, 0, -1, false, { M.query })
+  if M.literal_seed then M.literal_seed.tick = vim.api.nvim_buf_get_changedtick(M.input) end
   M.win = vim.api.nvim_open_win(M.input, true, { relative = 'win', win = M.owner, row = 0, col = 0, width = 1, height = 1, style = 'minimal', zindex = 70 })
   M.status_win = vim.api.nvim_open_win(M.status_buf, false, { relative = 'win', win = M.owner, row = 0, col = 1, width = 1, height = 1, style = 'minimal', focusable = false, zindex = 70 })
   for _, win in ipairs({ M.win, M.status_win }) do vim.wo[win].winhighlight = 'Normal:JetvimPopup,NormalFloat:JetvimPopup' end
