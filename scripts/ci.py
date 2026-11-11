@@ -12,10 +12,11 @@ _process_spec = importlib.util.spec_from_file_location('jetvim_fixture_processes
 process_support = importlib.util.module_from_spec(_process_spec)
 _process_spec.loader.exec_module(process_support)
 GROUPS = {
-    'core': ('integration', 'tui', 'launcher', 'startup_directories', 'process_lifecycle', 'sidebar', 'tree_navigation', 'selection', 'tabs', 'appearance',
+    'core': ('integration', 'tui', 'launcher', 'startup_directories', 'process_lifecycle', 'sidebar', 'tree_navigation', 'elixir_editing', 'elixir_lsp', 'elixir_navigation', 'selection', 'tabs', 'appearance',
              'disk', 'workspace', 'workspace_autosave', 'tree_create', 'tree_delete', 'tree_rename', 'tree_open_all', 'tree_context', 'tree_reveal_lifecycle', 'project_search', 'project_search_modes', 'project_search_selection', 'project_search_open_all', 'word_delete', 'paging', 'page_selection', 'definition_usages', 'usages_open_all', 'fn_bridge', 'mac_bridge', 'terminal_bridge', 'search', 'search_selection', 'search_close_lifecycle', 'file_location', 'settings', 'settings_menu', 'hooks', 'oxlint', 'diagnostics_live', 'blame', 'blame_tui', 'terminal_layout', 'terminal_keys', 'terminal_paste', 'resize', 'layout', 'overview', 'vcs_cache', 'gutter_cache', 'autosave', 'git_layout', 'git_focus', 'git_select_all'),
     'git': ('git_changes', 'vcs', 'git_gutter', ('blame', '--real'), ('disk', '--git-restore')),
     'languages': ('lsp', 'go_lsp'),
+    'elixir': (('elixir_lsp', '--real'),),
     'installer': ('install',),
 }
 parser = argparse.ArgumentParser(description=__doc__)

@@ -25,6 +25,17 @@ function M.setup(root)
       TEST_TELEMETRY_DIR = home .. '/cache/go-telemetry',
     },
   })
+  -- Keep ElixirLS package/build caches local; project builds use .elixir_ls.
+  vim.lsp.config('elixirls', {
+    cmd_env = {
+      MIX_HOME = home .. '/tools/elixir/mix', HEX_HOME = home .. '/tools/elixir/hex',
+      MIX_INSTALL_DIR = home .. '/tools/elixir/install',
+      REBAR_CACHE_DIR = home .. '/cache/rebar3',
+      XDG_CONFIG_HOME = home .. '/config', XDG_CACHE_HOME = home .. '/cache',
+      XDG_DATA_HOME = home .. '/data', XDG_STATE_HOME = home .. '/state',
+      TMPDIR = home .. '/tmp', ERL_CRASH_DUMP = home .. '/elixir-erl-crash.dump',
+    },
+  })
   vim.api.nvim_create_user_command('JetvimLspInfo', function()
     local lines = { 'File type: ' .. (vim.bo.filetype ~= '' and vim.bo.filetype or '(none)') }
     local clients = vim.lsp.get_clients({ bufnr = 0 })
@@ -40,11 +51,17 @@ function M.setup(root)
     local go_executable = vim.fn.exepath('gopls')
     lines[#lines + 1] = 'Go server: ' .. (go_executable ~= '' and go_executable or 'gopls not found on PATH')
     if go_executable == '' then lines[#lines + 1] = 'Install Go support locally: ' .. root .. '/scripts/setup-gopls.sh' end
+    local elixir_local = home .. '/tools/elixir-ls/language_server.sh'
+    local elixir_executable = vim.fn.executable(elixir_local) == 1 and elixir_local or vim.fn.exepath('elixir-ls')
+    lines[#lines + 1] = 'Elixir server: ' .. (elixir_executable ~= '' and elixir_executable or 'elixir-ls not found on PATH')
+    if elixir_executable == '' then lines[#lines + 1] = 'Install Elixir support locally: ' .. root .. '/scripts/setup-elixir.sh' end
     local go_file = vim.tbl_contains({ 'go', 'gomod', 'gowork' }, vim.bo.filetype)
     local ts_file = vim.tbl_contains({ 'javascript', 'javascriptreact', 'typescript', 'typescriptreact' }, vim.bo.filetype)
-    if go_file or ts_file then
-      local server = go_file and 'gopls' or 'ts_ls'
-      local markers = go_file and { 'go.work', 'go.mod', '.git' } or { 'tsconfig.json', 'package.json', '.git' }
+    local elixir_file = vim.bo.filetype == 'elixir'
+    if go_file or ts_file or elixir_file then
+      local server = go_file and 'gopls' or (elixir_file and 'elixirls' or 'ts_ls')
+      local markers = go_file and { 'go.work', 'go.mod', '.git' }
+        or (elixir_file and { 'mix.exs', '.git' } or { 'tsconfig.json', 'package.json', '.git' })
       local workspace = vim.fs.root(vim.api.nvim_buf_get_name(0), markers)
       lines[#lines + 1] = server .. ' enabled: ' .. (vim.lsp.is_enabled(server) and 'yes' or 'no')
       lines[#lines + 1] = 'Matching workspace root: ' .. (workspace or 'none; open a project with ' .. table.concat(markers, ', '))

@@ -5,7 +5,7 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
-DIRECTORIES = ('assets', 'config', 'docs', 'lua', 'macos', 'scripts', 'terminal', 'tests', '.github')
+DIRECTORIES = ('assets', 'config', 'docs', 'lua', 'syntax', 'indent', 'macos', 'scripts', 'terminal', 'tests', '.github')
 TOP_FILES = ('AGENTS.md', 'TASKS.md', 'README.md', 'LICENSE', 'install.sh', 'init.lua', 'jetvim', '.gitignore', 'VERSION')
 PATTERNS = {
     'private home path': re.compile(r'/(?:Users|home)/[A-Za-z0-9_.-]+/'),

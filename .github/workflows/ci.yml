@@ -35,7 +35,7 @@ jobs:
           python3 tests/public_audit.py
           python3 scripts/generate.py --check
           python3 -c 'import ast,pathlib; [ast.parse(p.read_text(),filename=str(p)) for d in ("scripts","tests") for p in pathlib.Path(d).glob("*.py")]'
-          for file in jetvim scripts/setup-typescript.sh scripts/setup-gopls.sh; do sh -n "$file"; done
+          for file in jetvim scripts/setup-typescript.sh scripts/setup-gopls.sh scripts/setup-elixir.sh; do sh -n "$file"; done
           for file in install.sh scripts/package.sh; do bash -n "$file"; done
       - name: Installer unit tests
         run: python3 scripts/ci.py installer
@@ -105,3 +105,44 @@ jobs:
           sh scripts/setup-gopls.sh
       - name: Verify attachment and declaration navigation
         run: python3 scripts/ci.py languages
+
+  elixir:
+    name: Elixir (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      JETVIM_DISABLE_VCS: '1'
+      JETVIM_DISABLE_AUTOSAVE: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1
+        with:
+          otp-version: '28.3.1'
+          elixir-version: '1.20.5'
+          version-type: strict
+          install-hex: false
+          install-rebar: false
+      - name: Install pinned local editor dependencies
+        shell: bash
+        run: |
+          export JETVIM_HOME="$PWD/.jetvim/ci-home"
+          export JETVIM_SOURCE_DIR="$PWD"
+          export JETVIM_BIN_DIR="$JETVIM_HOME/bin"
+          export JETVIM_SKIP_LANGUAGES=1
+          bash install.sh
+          echo "$JETVIM_HOME/tools/neovim/bin" >> "$GITHUB_PATH"
+          echo "$JETVIM_HOME/tools/ripgrep/bin" >> "$GITHUB_PATH"
+      - name: Install optional ElixirLS for the CI runtime
+        run: sh scripts/setup-elixir.sh
+      - name: Verify real Elixir attachment, navigation and diagnostics
+        run: python3 scripts/ci.py elixir

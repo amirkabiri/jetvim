@@ -12,6 +12,7 @@ local types = {
   lua = { '◐', '', 'Lua' },
   python = { 'Py', '', 'Python' },
   go = { 'Go', '', 'Go' },
+  elixir = { 'Ex', '', 'Elixir' },
   rust = { 'Rs', '', 'Rust' },
   markdown = { 'M↓', '', 'Markdown' },
   html = { '<>', '', 'Html' },
@@ -23,12 +24,13 @@ local types = {
 M.colors = {
   Folder = '#a8adb5', File = '#9da0a8', Json = '#c191d6', Javascript = '#d9bb76',
   Typescript = '#6c95eb', Yaml = '#d18a94', Lua = '#6c95eb', Python = '#d9bb76',
-  Go = '#68b8c7', Rust = '#cf8e6d', Markdown = '#6c95eb', Html = '#cf8e6d',
+  Elixir = '#c191d6', Go = '#68b8c7', Rust = '#cf8e6d', Markdown = '#6c95eb', Html = '#cf8e6d',
   Css = '#c191d6', Shell = '#6aab73', Config = '#a8adb5', Git = '#e38b59',
 }
 local extensions = {
   json = 'json', jsonc = 'json', jsonl = 'json', js = 'javascript', mjs = 'javascript',
   cjs = 'javascript', jsx = 'jsx', ts = 'typescript', tsx = 'tsx', yml = 'yaml', yaml = 'yaml',
+  ex = 'elixir', exs = 'elixir',
   lua = 'lua', py = 'python', pyw = 'python', go = 'go', mod = 'go', rs = 'rust',
   md = 'markdown', markdown = 'markdown', html = 'html', htm = 'html', css = 'css',
   scss = 'css', sh = 'shell', zsh = 'shell', bash = 'shell', fish = 'shell',

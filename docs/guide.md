@@ -333,9 +333,9 @@ Press `⌘B` on a reference to jump to its definition; on the definition, it ope
 In the Usages picker, ⌘A selects all filtered results; Enter opens one tab per file, and editing the query clears the selection.
 
 Edit [config/lsp.lua](../config/lsp.lua) to configure installed language servers.
-Examples for Go, Python and TypeScript are provided. Startup never downloads
-language tools. Enabling a server in the configuration starts the installed
-server for matching filetypes; the current saved configuration has `ts_ls` and
+Examples for Go, Python, TypeScript and Elixir are provided. Install language
+tools explicitly before using them. Enabling a server in the configuration starts
+the installed server for matching filetypes; the current saved configuration has `ts_ls` and
 `gopls` enabled. Server capabilities and any files they create are controlled by those
 tools.
 
@@ -371,6 +371,22 @@ changing your shell or global Go settings. Keep `gopls` enabled in
 `config/lsp.lua` and open a Go project containing `go.mod` or `go.work`.
 `:JetvimLspInfo` shows the attached server, executable, enabled configuration and
 matching workspace root to diagnose Go to Declaration (`⌘B`).
+
+For Elixir (`.ex` / `.exs`), install the optional server with an existing
+compatible Elixir/Erlang runtime and Python 3 on PATH:
+
+```sh
+./scripts/setup-elixir.sh
+```
+
+This verifies and installs [ElixirLS v0.31.1](https://github.com/elixir-lsp/elixir-ls/releases/tag/v0.31.1),
+including its Mix dependencies, under `JETVIM_HOME`. Restart Jetvim and open a
+project containing `mix.exs` for ⌘B definition/usages, completion, formatting and
+line diagnostics. `:JetvimLspInfo` reports the server and Mix root. Basic syntax
+highlighting, comments and file icons work without a server. ElixirLS may rebuild
+its local installation after runtime changes and builds projects in `.elixir_ls`;
+project dependencies must already be installed. Dialyzer, dependency downloads
+and ElixirLS's MCP server are disabled by default in `config/lsp.lua`.
 
 This is a working foundation, not full IntelliJ parity. Debugging, run
 configurations, structural refactoring, multiple cursors, project-wide replace

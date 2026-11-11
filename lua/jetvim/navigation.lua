@@ -12,6 +12,23 @@ local function location_parts(location)
   return location.targetUri or location.uri,
     location.targetSelectionRange or location.range or location.targetRange
 end
+-- ElixirLS may return the whole declaration beginning at `def`, where it
+-- cannot itself resolve a symbol. Keep that range, but jump to the identifier.
+local function elixir_selection(item, range, encoding)
+  local text = item.text or ''
+  local indent, keyword, identifier, tail = text:match('^(%s*)(def[%a]*)%s+([%a_\128-\255][%w_\128-\255]*[!?]?)(.*)$')
+  local declarations = { def = true, defp = true, defmacro = true, defmacrop = true, defguard = true, defguardp = true }
+  if not declarations[keyword] or identifier == 'unquote' or item.col ~= #indent + 1 then return end
+  tail = tail:gsub('^%s+', '')
+  if tail ~= '' and not tail:match('^[%(,]') and not tail:match('^do[%s:]') and tail ~= 'do' then return end
+  local first = assert(text:find(identifier, #indent + #keyword + 1, true)) - 1
+  local selection = {
+    start = { line = range.start.line, character = vim.str_utfindex(text, encoding, first, false) },
+    ['end'] = { line = range.start.line, character = vim.str_utfindex(text, encoding, first + #identifier, false) },
+  }
+  if point_before(range['end'], selection['end']) then return end
+  return selection, first + 1
+end
 function M.definition()
   generation = generation + 1
   local token = generation
@@ -66,7 +83,7 @@ function M.definition()
       finish()
     end, 10000)
   end
-  local function entries(responses)
+  local function entries(responses, definition)
     local result, seen, errors = {}, {}, {}
     for _, response in ipairs(responses) do
       if response.error then errors[#errors + 1] = response.error.message or 'Language server request failed' end
@@ -80,6 +97,13 @@ function M.definition()
             local ok, items = pcall(vim.lsp.util.locations_to_items, { normalized }, response.client.offset_encoding)
             if ok and items[1] then
               local item = items[1]
+              if definition and response.client.name == 'elixirls' then
+                local selection, column = elixir_selection(item, range, response.client.offset_encoding)
+                if selection then
+                  normalized = { targetUri = uri, targetRange = range, targetSelectionRange = selection }
+                  range, item.col = selection, column
+                end
+              end
               local key = item.filename .. ':' .. item.lnum .. ':' .. item.col
               if not seen[key] then
                 seen[key] = true
@@ -128,7 +152,7 @@ function M.definition()
     end
   end
   request('textDocument/definition', function(responses)
-    local definitions, errors = entries(responses)
+    local definitions, errors = entries(responses, true)
     if #definitions == 0 then notify(errors[1] or 'No definition found'); return end
     local at_definition = false
     for _, item in ipairs(definitions) do if item.self then at_definition = true; break end end

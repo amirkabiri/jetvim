@@ -11,9 +11,9 @@ dist = ROOT / '.jetvim/dist'
 archive = dist / 'jetvim.tar.gz'
 checksum = (dist / 'SHA256SUMS').read_text().split()
 assert checksum == [hashlib.sha256(archive.read_bytes()).hexdigest(), 'jetvim.tar.gz']
-allowed = {'jetvim', 'install.sh', 'init.lua', 'README.md', 'config', 'lua', 'scripts', 'docs', 'assets', 'terminal', 'macos', 'VERSION', 'LICENSE'}
+allowed = {'jetvim', 'install.sh', 'init.lua', 'README.md', 'config', 'lua', 'syntax', 'indent', 'scripts', 'docs', 'assets', 'terminal', 'macos', 'VERSION', 'LICENSE'}
 required = {'jetvim/jetvim', 'jetvim/install.sh', 'jetvim/init.lua', 'jetvim/README.md',
-            'jetvim/assets/jetvim.svg', 'jetvim/macos/KeyBridge.swift', 'jetvim/terminal/warp.md'}
+            'jetvim/syntax/elixir.vim', 'jetvim/indent/elixir.vim', 'jetvim/assets/jetvim.svg', 'jetvim/macos/KeyBridge.swift', 'jetvim/terminal/warp.md'}
 manifest = []
 with tarfile.open(archive, 'r:gz') as tar:
     for member in tar.getmembers():

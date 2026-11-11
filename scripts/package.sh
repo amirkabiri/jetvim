@@ -8,7 +8,7 @@ out = root / '.jetvim/dist'
 out.mkdir(parents=True, exist_ok=True)
 archive = out / 'jetvim.tar.gz'
 # Explicit public payload: never include runtime, editor metadata or local files.
-names = ['jetvim', 'install.sh', 'init.lua', 'README.md', 'config', 'lua', 'scripts', 'docs', 'assets', 'terminal', 'macos']
+names = ['jetvim', 'install.sh', 'init.lua', 'README.md', 'config', 'lua', 'syntax', 'indent', 'scripts', 'docs', 'assets', 'terminal', 'macos']
 with tarfile.open(archive, 'w:gz') as tar:
     for name in names:
         path = root / name

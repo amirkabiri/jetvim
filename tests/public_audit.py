@@ -63,6 +63,15 @@ class AuditTest(unittest.TestCase):
         self.assertIn('email address requiring review', output)
         self.assertNotIn(email, output)
 
+    def test_language_runtime_directories_are_scanned(self):
+        for name in ('syntax', 'indent'):
+            (self.root / name).mkdir()
+            (self.root / name / 'elixir.vim').write_text('gh' + 'p_' + 'Z' * 36)
+        failed, output = self.scan()
+        self.assertTrue(failed)
+        self.assertIn('syntax/elixir.vim:1: GitHub token', output)
+        self.assertIn('indent/elixir.vim:1: GitHub token', output)
+
     def test_unknown_binary_requires_review(self):
         (self.root / 'assets').mkdir()
         (self.root / 'assets/unreviewed.bin').write_bytes(b'\xff\x00')
